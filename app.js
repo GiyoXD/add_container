@@ -468,4 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (rowIndex > 0) tableBody.appendChild(tr);
         });
     }
+
+    // Call this at the very end after all functions are defined
+    loadSettings();
 });
