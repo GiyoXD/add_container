@@ -2,6 +2,10 @@
 build/
 build_qt6/
 
+# Python
+__pycache__/
+*.pyc
+
 # IDE files
 .vscode/
 .idea/
@@ -10,6 +14,8 @@ build_qt6/
 # Database and secrets
 *.db
 secret.json
+.env
+.env_ready
 
 # Compiled files
 *.exe

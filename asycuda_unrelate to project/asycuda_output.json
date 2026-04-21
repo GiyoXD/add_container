@@ -1,0 +1,482 @@
+{
+  "ASYCUDA": {
+    "Export_release": {
+      "Date_of_exit": "",
+      "Time_of_exit": "",
+      "Actual_office_of_exit_code": null,
+      "Actual_office_of_exit_name": null,
+      "Exit_reference": null,
+      "Comments": null
+    },
+    "Assessment_notice": {
+      "Item_tax_total": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    "Global_taxes": {
+      "Global_tax_item": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    "Property": {
+      "Sad_flow": "I",
+      "Forms": {
+        "Number_of_the_form": "1",
+        "Total_number_of_forms": "1"
+      },
+      "Nbers": {
+        "Number_of_loading_lists": "",
+        "Total_number_of_items": "0",
+        "Total_number_of_packages": ""
+      },
+      "Place_of_declaration": null,
+      "Date_of_declaration": "",
+      "Selected_page": "1"
+    },
+    "Identification": {
+      "Office_segment": {
+        "Customs_clearance_office_code": "SVR30",
+        "Customs_Clearance_office_name": "Manhattan SEZ CEO"
+      },
+      "Type": {
+        "Type_of_declaration": "IM",
+        "Declaration_gen_procedure_code": "9",
+        "Type_of_transit_document": null
+      },
+      "Manifest_reference_number": null,
+      "Registration": {
+        "Serial_number": null,
+        "Number": "",
+        "Date": ""
+      },
+      "Assessment": {
+        "Serial_number": null,
+        "Number": "",
+        "Date": ""
+      },
+      "receipt": {
+        "Serial_number": null,
+        "Number": "",
+        "Date": ""
+      }
+    },
+    "Traders": {
+      "Exporter": {
+        "Exporter_code": "",
+        "Exporter_name": null
+      },
+      "Consignee": {
+        "Consignee_code": null,
+        "Consignee_name": null
+      },
+      "Financial": {
+        "Financial_code": "",
+        "Financial_name": null,
+        "Financial_representative_nationality": null,
+        "Financial_representative_identity_number": null,
+        "Financial_representative_identity_validity": ""
+      }
+    },
+    "Declarant": {
+      "Declarant_code": "100176968",
+      "Declarant_name": null,
+      "Declarant_representative": "Zhang Lixing",
+      "Reference": {
+        "Number": null
+      }
+    },
+    "General_information": {
+      "Country": {
+        "Country_first_destination": null,
+        "Trading_country": "",
+        "Export": {
+          "Export_country_code": "",
+          "Export_country_name": "",
+          "Export_country_region": ""
+        },
+        "Destination": {
+          "Destination_country_code": "KH",
+          "Destination_country_name": "Cambodia",
+          "Destination_country_region": ""
+        },
+        "Country_of_origin_name": "United Arab Emirates"
+      },
+      "Value_details": "",
+      "CAP": null,
+      "Additional_information": null,
+      "Comments_free_text": null
+    },
+    "Transport": {
+      "Means_of_transport": {
+        "Departure_arrival_information": {
+          "Identity": null,
+          "Nationality": null
+        },
+        "Border_information": {
+          "Identity": null,
+          "Nationality": null,
+          "Mode": null
+        },
+        "Inland_mode_of_transport": null
+      },
+      "Container_flag": "false",
+      "Delivery_terms": {
+        "Code": null,
+        "Place": null,
+        "Situation": ""
+      },
+      "Border_office": {
+        "Code": null,
+        "Name": null
+      },
+      "Place_of_loading": {
+        "Code": null,
+        "Name": null,
+        "Country": null
+      },
+      "Location_of_goods": null
+    },
+    "Financial": {
+      "Financial_transaction": {
+        "code1": null,
+        "code2": null
+      },
+      "Bank": {
+        "Code": "",
+        "Name": "",
+        "Branch": null,
+        "Reference": ""
+      },
+      "Terms": {
+        "Code": "10",
+        "Description": "Instant (present or current month)"
+      },
+      "Total_invoice": "",
+      "Deffered_payment_reference": null,
+      "Amounts": {
+        "Total_manual_taxes": "",
+        "Global_taxes": "8000.0",
+        "Totals_taxes": "8000.0"
+      },
+      "Guarantee": {
+        "Name": null,
+        "Amount": "0.0",
+        "Date": "",
+        "Excluded_country": {
+          "Code": null,
+          "Name": null
+        }
+      }
+    },
+    "Warehouse": {
+      "Identification": null,
+      "Delay": ""
+    },
+    "Transit": {
+      "Principal": {
+        "Code": null,
+        "Name": null,
+        "Representative": null
+      },
+      "Signature": {
+        "Place": null,
+        "Date": ""
+      },
+      "Destination": {
+        "Office": null,
+        "Country": null
+      },
+      "Seals": {
+        "Number": "",
+        "Identity": null
+      },
+      "Result_of_control": "",
+      "Time_limit": "",
+      "Officer_name": null
+    },
+    "Valuation": {
+      "Calculation_working_mode": "0",
+      "Weight": {
+        "Gross_weight": ""
+      },
+      "Total_cost": "0.0",
+      "Total_CIF": "0.0",
+      "Gs_Invoice": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "0",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Gs_external_freight": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Gs_internal_freight": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "0",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Gs_insurance": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Gs_other_cost": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Gs_deduction": {
+        "Amount_national_currency": "0.0",
+        "Amount_foreign_currency": "0",
+        "Currency_code": "",
+        "Currency_name": "No foreign currency",
+        "Currency_rate": "0"
+      },
+      "Total": {
+        "Total_invoice": "0.0",
+        "Total_weight": "0.0"
+      }
+    },
+    "Item": {
+      "Packages": {
+        "Number_of_packages": "",
+        "Marks1_of_packages": null,
+        "Marks2_of_packages": null,
+        "Kind_of_packages_code": null,
+        "Kind_of_packages_name": null
+      },
+      "IncoTerms": {
+        "Code": null,
+        "Place": null
+      },
+      "Tarification": {
+        "Tarification_data": null,
+        "HScode": {
+          "Commodity_code": null,
+          "Precision_1": null,
+          "Precision_2": null,
+          "Precision_3": null,
+          "Precision_4": null
+        },
+        "Preference_code": null,
+        "Extended_customs_procedure": "9000",
+        "National_customs_procedure": "",
+        "Quota_code": null,
+        "Quota": {
+          "QuotaCode": "",
+          "QuotaId": "",
+          "QuotaItem": {
+            "ItmNbr": ""
+          }
+        },
+        "Supplementary_unit": [
+          {
+            "Suppplementary_unit_code": null,
+            "Suppplementary_unit_name": null,
+            "Suppplementary_unit_quantity": ""
+          },
+          {
+            "Suppplementary_unit_code": null,
+            "Suppplementary_unit_name": null,
+            "Suppplementary_unit_quantity": ""
+          },
+          {
+            "Suppplementary_unit_code": null,
+            "Suppplementary_unit_name": null,
+            "Suppplementary_unit_quantity": ""
+          }
+        ],
+        "Item_price": "",
+        "Valuation_method_code": null,
+        "Value_item": "0+0+0+0-0",
+        "Attached_doc_item": null,
+        "A.I._code": null
+      },
+      "write_off_unit": {
+        "write_off_unit_code": null,
+        "write_off_unit_qty": ""
+      },
+      "Goods_description": {
+        "Country_of_origin_code": "AE",
+        "Country_of_origin_region": null,
+        "Description_of_goods": null,
+        "Commercial_Description": null
+      },
+      "Previous_doc": {
+        "Summary_declaration": "11111",
+        "Summary_declaration_sl": null,
+        "Previous_document_reference": null,
+        "Previous_warehouse_code": null
+      },
+      "Licence_number": null,
+      "Amount_deducted_from_licence": "",
+      "Quantity_deducted_from_licence": "",
+      "Free_text_1": null,
+      "Free_text_2": null,
+      "Taxation": {
+        "Item_taxes_amount": "",
+        "Item_taxes_guaranted_amount": "",
+        "Item_taxes_mode_of_payment": null,
+        "Counter_of_normal_mode_of_payment": "",
+        "Displayed_item_taxes_amount": "",
+        "Taxation_line": [
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          },
+          {
+            "Duty_tax_code": null,
+            "Duty_tax_Base": "",
+            "Duty_tax_rate": "",
+            "Duty_tax_amount": "",
+            "Duty_tax_MP": null,
+            "Duty_tax_Type_of_calculation": null
+          }
+        ]
+      },
+      "Valuation_item": {
+        "Weight_itm": {
+          "Gross_weight_itm": "",
+          "Net_weight_itm": ""
+        },
+        "Total_cost_itm": "0.0",
+        "Total_CIF_itm": "0.0",
+        "Rate_of_adjustement": "1",
+        "Statistical_value": "0.0",
+        "Alpha_coeficient_of_apportionment": "",
+        "Item_Invoice": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "item_external_freight": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "0.0",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "item_internal_freight": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "0.0",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "item_insurance": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "0.0",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "item_other_cost": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "0.0",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "item_deduction": {
+          "Amount_national_currency": "0.0",
+          "Amount_foreign_currency": "0.0",
+          "Currency_code": null,
+          "Currency_name": "No foreign currency",
+          "Currency_rate": "0.0"
+        },
+        "Market_valuer": {
+          "Rate": "",
+          "Currency_code": null,
+          "Currency_amount": "",
+          "Basis_description": null,
+          "Basis_amount": ""
+        }
+      }
+    }
+  }
+}
