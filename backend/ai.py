@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 
 # --- CONFIGURATION ---
-GEMINI_API_KEY = "AIzaSyAKwgZ2F8aUxPR_k0BMohnykz8lYoPGWWc" # Get this from Google AI Studio
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY" # Get this from Google AI Studio
 # Use absolute path relative to this file
 BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'secret.json')

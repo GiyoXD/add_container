@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         log("CRITICAL: Failed to setup local database.");
     }
 
-    m_geminiClient = new GeminiClient("AIzaSyAKwgZ2F8aUxPR_k0BMohnykz8lYoPGWWc", this);
+    m_geminiClient = new GeminiClient("YOUR_GEMINI_API_KEY", this);
     m_sheetsClient = new GoogleSheetsClient(baseDir + "/secret.json", "1piQv1mpEWWBw3hUITAD2Q5ZHdvnqP38n0OLUbK5Y1Hk", this);
 
     connect(m_geminiClient, &GeminiClient::statusUpdate, this, &MainWindow::log);

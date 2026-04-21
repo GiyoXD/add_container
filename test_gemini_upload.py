@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-API_KEY = "AIzaSyAKwgZ2F8aUxPR_k0BMohnykz8lYoPGWWc"
+API_KEY = "YOUR_GEMINI_API_KEY"
 # Use any small image file for testing
 TEST_IMAGE = "backend/test_image.png" # I'll check if any image exists or create a dummy
 
