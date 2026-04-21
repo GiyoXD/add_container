@@ -49,6 +49,18 @@ document.addEventListener('DOMContentLoaded', () => {
         geminiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
         spreadsheetIdInput.value = localStorage.getItem('spreadsheet_id') || '';
         serviceAccountInput.value = localStorage.getItem('service_account_json') || '';
+
+        // Load cached sheet data
+        const cachedData = localStorage.getItem('cached_sheet_data');
+        if (cachedData) {
+            try {
+                currentSheetData = JSON.parse(cachedData);
+                renderTable(currentSheetData);
+                log("Loaded cached sheet data.");
+            } catch (e) {
+                console.error("Failed to parse cached sheet data", e);
+            }
+        }
     }
 
     loadSettings();
