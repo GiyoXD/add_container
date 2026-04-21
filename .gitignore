@@ -1,0 +1,25 @@
+# Build directories
+build/
+build_qt6/
+
+# IDE files
+.vscode/
+.idea/
+*.user
+
+# Database and secrets
+*.db
+secret.json
+
+# Compiled files
+*.exe
+*.obj
+*.o
+*.a
+*.dll
+
+# Qt generated files
+*_autogen/
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
