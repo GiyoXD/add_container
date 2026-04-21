@@ -351,6 +351,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await resp.json();
         const sheet = data.sheets[0];
         currentSheetData = sheet.data[0].rowData; // Cache globally for filtering
+        
+        // Save to LocalStorage for offline persistence
+        localStorage.setItem('cached_sheet_data', JSON.stringify(currentSheetData));
 
         renderTable(currentSheetData);
     }
@@ -443,6 +446,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
                     if (brightness < 128) el.style.color = 'white';
                 }
+
+                if (rowIndex === 0) {
+                    tableHeader.appendChild(el);
+                } else {
+                    tr.appendChild(el);
+                }
+            });
+            if (rowIndex > 0) tableBody.appendChild(tr);
+        });
+    }
+});
+             }
 
                 if (rowIndex === 0) {
                     tableHeader.appendChild(el);
