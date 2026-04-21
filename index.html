@@ -119,6 +119,54 @@
         }
         .border-dashed { border-style: dashed !important; border-color: #adb5bd !important; }
         .drop-zone:hover { border-color: #4facfe !important; background-color: #f1f8ff !important; }
+        
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            body { padding: 10px 5px; }
+            .container { padding: 0 10px; }
+            .card, .settings-section, .table-container {
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 15px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            }
+            .card-header {
+                padding: 12px 15px;
+                border-radius: 8px 8px 0 0 !important;
+            }
+            .page-title {
+                font-size: 1.5rem;
+                margin-bottom: 20px;
+            }
+            #resultsTable th, #resultsTable td {
+                padding: 10px 8px;
+                font-size: 0.9rem;
+            }
+            .d-flex.gap-2 input, .d-flex.gap-2 button {
+                font-size: 0.9rem;
+            }
+            .drop-zone {
+                padding: 15px !important;
+            }
+            /* Stack table controls on mobile */
+            .table-controls {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 15px;
+            }
+            .table-controls h4 {
+                border-end: none !important;
+                border-bottom: 1px solid #dee2e6;
+                padding-bottom: 10px;
+                width: 100%;
+            }
+            .table-controls .d-flex {
+                width: 100%;
+            }
+            #searchInput {
+                width: 100% !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -195,8 +243,8 @@
 
         <!-- Results Table -->
         <div class="table-container">
-            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                <h4 class="mb-0 text-secondary"><i class="fa-solid fa-table border-end pe-2 me-2"></i>2026 Live Preview</h4>
+            <div class="table-controls d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="mb-0 text-secondary border-end pe-2 me-2"><i class="fa-solid fa-table me-2"></i>2026 Live Preview</h4>
                 <div class="d-flex gap-2">
                     <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search table..." style="width: 250px;">
                     <button id="fetchBtn" class="btn btn-outline-info btn-sm text-nowrap"><i class="fa-solid fa-rotate me-1"></i>Refresh Data</button>
