@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearSettingsBtn = document.getElementById('clearSettings');
     
     const imageInput = document.getElementById('imageInput');
+    const dropZone = document.getElementById('dropZone');
+    const imagePreview = document.getElementById('imagePreview');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const imagePathInput = document.getElementById('imagePathInput');
+    
     const invoiceIdsInput = document.getElementById('invoiceIds');
     const processBtn = document.getElementById('processBtn');
     const fetchBtn = document.getElementById('fetchBtn');
@@ -19,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.getElementById('tableBody');
 
     let currentSheetData = null; // Store fetched data for filtering
+    let selectedFile = null;     // Store selected/dropped/pasted image
 
     // Constants
     const PROMPT = `
@@ -47,7 +53,84 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadSettings();
 
-    // Event Listeners
+    // Event Listeners: Image Drag/Drop/Paste
+    dropZone.addEventListener('click', () => imageInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#4facfe';
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleImageFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    imageInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            handleImageFile(e.target.files[0]);
+        }
+    });
+
+    document.addEventListener('paste', (e) => {
+        if (!e.clipboardData) return;
+
+        // Try items first (better for apps like WeChat, Snipping Tool, etc.)
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                    handleImageFile(file);
+                    e.preventDefault();
+                    return;
+                }
+            }
+        }
+
+        // Fallback to files
+        if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+            handleImageFile(e.clipboardData.files[0]);
+            e.preventDefault();
+        }
+    });
+
+    imagePathInput.addEventListener('input', () => {
+        if (imagePathInput.value.trim()) {
+            selectedFile = null; // Prioritize path over file
+            imagePreview.classList.add('d-none');
+            fileNameDisplay.textContent = "Using Web URL";
+            fileNameDisplay.classList.remove('d-none');
+        }
+    });
+
+    function handleImageFile(file) {
+        if (!file.type.startsWith('image/')) {
+            alert("Please provide an image file.");
+            return;
+        }
+        selectedFile = file;
+        imagePathInput.value = ''; // clear input
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.src = e.target.result;
+            imagePreview.classList.remove('d-none');
+            fileNameDisplay.textContent = file.name || "Pasted Image";
+            fileNameDisplay.classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Settings Event Listeners
     toggleSettingsBtn.addEventListener('click', () => {
         settingsContainer.classList.toggle('hidden');
     });
@@ -72,22 +155,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     processBtn.addEventListener('click', async () => {
-        const file = imageInput.files[0];
         const invoiceIds = invoiceIdsInput.value.trim().split('\n').filter(id => id.trim());
         const geminiKey = geminiKeyInput.value;
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
+        const urlInput = imagePathInput.value.trim();
 
-        if (!file || !invoiceIds.length || !geminiKey || !spreadsheetId || !saJson) {
+        if ((!selectedFile && !urlInput) || !invoiceIds.length || !geminiKey || !spreadsheetId || !saJson) {
             alert("Please complete all fields (Image, IDs, and Settings).");
             return;
         }
 
         try {
             processBtn.disabled = true;
-            processBtn.textContent = "Processing...";
-            log("Reading image...");
-            const base64Image = await fileToBase64(file);
+            processBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Processing...';
+            
+            let base64Image = null;
+            if (selectedFile) {
+                log("Reading local image file...");
+                base64Image = await fileToBase64(selectedFile);
+            } else {
+                log(`Fetching image from URL: ${urlInput}`);
+                try {
+                    const resp = await fetch(urlInput);
+                    if (!resp.ok) throw new Error("Failed to fetch image from URL");
+                    const blob = await resp.blob();
+                    base64Image = await fileToBase64(blob);
+                } catch (e) {
+                    throw new Error("Could not load image from URL. Browsers block local C:\\ paths. Please drag & drop or use Ctrl+V to paste the image instead.");
+                }
+            }
             
             log("Sending to Gemini...");
             const extractedRows = await callGemini(geminiKey, base64Image, invoiceIds);
@@ -108,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
         } finally {
             processBtn.disabled = false;
-            processBtn.textContent = "Step 3: Process & Sync to Google Sheets";
+            processBtn.innerHTML = '<i class="fa-solid fa-bolt me-2"></i>Step 3: AI Extract & Sync to Sheets';
         }
     });
 

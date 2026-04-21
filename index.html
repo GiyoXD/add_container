@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Logistics Data Entry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://kjur.github.io/jsrsasign/jsrsasign-all-min.js"></script>
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            min-height: 100vh;
+            padding: 30px 20px; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .page-title {
+            font-weight: 700;
+            color: #2c3e50;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .card, .settings-section, .table-container {
+            background: #fff;
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+        .card-header {
+            background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+            color: white !important;
+            font-weight: 600;
+            border-radius: 12px 12px 0 0 !important;
+            border-bottom: none;
+            padding: 15px 20px;
+        }
+        .settings-section { 
+            padding: 25px; 
+        }
+        .settings-header {
+            color: #34495e;
+            font-weight: 600;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 10px 20px;
+            transition: all 0.3s;
+        }
+        .btn-success {
+            background: linear-gradient(to right, #11998e 0%, #38ef7d 100%);
+            border: none;
+        }
+        .btn-success:hover {
+            background: linear-gradient(to right, #0f897e 0%, #32d970 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(56, 239, 125, 0.4);
+        }
+        .btn-outline-info {
+            border-width: 2px;
+        }
+        .log-container { 
+            height: 250px; 
+            overflow-y: auto; 
+            background: #1e1e1e; 
+            color: #4af626; 
+            font-family: 'Consolas', monospace; 
+            padding: 15px; 
+            border-radius: 8px; 
+            font-size: 0.9rem;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .hidden { display: none; }
+        
+        /* Table Styling */
+        .table-container { padding: 25px; }
+        #resultsTable { margin-bottom: 0; }
+        #resultsTable th {
+            white-space: nowrap;
+            background-color: #34495e !important;
+            color: white !important;
+            vertical-align: middle;
+            text-align: center;
+            padding: 15px 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            border-bottom: 3px solid #2c3e50;
+        }
+        #resultsTable td {
+            vertical-align: middle;
+            padding: 12px 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            border: 1px solid #ecf0f1;
+        }
+        .form-control {
+            border-radius: 8px;
+            padding: 10px 15px;
+            border: 1px solid #ced4da;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.25);
+            border-color: #4facfe;
+        }
+        .border-dashed { border-style: dashed !important; border-color: #adb5bd !important; }
+        .drop-zone:hover { border-color: #4facfe !important; background-color: #f1f8ff !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center page-title"><i class="fa-solid fa-ship me-2 text-primary"></i>Vision Logistics Data Entry</h1>
+
+        <!-- Settings Toggle -->
+        <div class="mb-3 text-end">
+            <button id="toggleSettings" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-gear me-1"></i> Settings</button>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settingsContainer" class="settings-section hidden">
+            <h4 class="settings-header"><i class="fa-solid fa-key me-2"></i>Credentials & Configuration</h4>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label text-muted fw-bold small">Gemini API Key</label>
+                    <input type="password" id="geminiKey" class="form-control" placeholder="AIzaSy...">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label text-muted fw-bold small">Google Spreadsheet ID</label>
+                    <input type="text" id="spreadsheetId" class="form-control" placeholder="1piQv1mp...">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-muted fw-bold small">Google Service Account JSON</label>
+                <textarea id="serviceAccountJson" class="form-control" rows="4" placeholder='{"type": "service_account", ...}'></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button id="saveSettings" class="btn btn-primary"><i class="fa-solid fa-save me-1"></i> Save Cache</button>
+                <button id="clearSettings" class="btn btn-danger"><i class="fa-solid fa-trash me-1"></i> Clear Cache</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Step 1: Image Selection -->
+                <div class="card h-100">
+                    <div class="card-header"><i class="fa-solid fa-image me-2"></i>Step 1: Capture Shipping Manifest</div>
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-4 text-center mb-3" style="cursor: pointer; background-color: #f8f9fa; transition: all 0.3s;">
+                            <i class="fa-solid fa-cloud-arrow-up fs-1 text-primary mb-2"></i>
+                            <h5 class="mb-1">Drag & Drop Image Here</h5>
+                            <p class="text-muted small mb-2">or click to browse, or Ctrl+V to paste</p>
+                            <input type="file" id="imageInput" class="d-none" accept="image/*">
+                            <img id="imagePreview" class="img-fluid rounded shadow-sm d-none mt-2 mx-auto" style="max-height: 150px; object-fit: contain;">
+                            <div id="fileNameDisplay" class="text-success fw-bold small mt-2 d-none"></div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted fw-bold small mb-1">Or enter Web URL (Local C:\ paths blocked by browsers)</label>
+                            <input type="text" id="imagePathInput" class="form-control form-control-sm" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <!-- Step 2: Invoice IDs -->
+                <div class="card h-100 mt-4 mt-md-0">
+                    <div class="card-header" style="background: linear-gradient(to right, #ff0844 0%, #ffb199 100%);"><i class="fa-solid fa-list-ol me-2"></i>Step 2: Assign Invoices</div>
+                    <div class="card-body">
+                        <label class="form-label text-muted fw-bold small mb-2">Invoice IDs (One per line, ordered)</label>
+                        <textarea id="invoiceIds" class="form-control" rows="4" placeholder="INV-2026-001&#10;INV-2026-002"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Action -->
+        <div class="row my-4 align-items-center">
+            <div class="col-md-12 mb-3">
+                <button id="processBtn" class="btn btn-success btn-lg w-100 py-3 shadow-sm fs-5"><i class="fa-solid fa-bolt me-2"></i>Step 3: AI Extract & Sync to Sheets</button>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="table-container">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="mb-0 text-secondary"><i class="fa-solid fa-table border-end pe-2 me-2"></i>2026 Live Preview</h4>
+                <div class="d-flex gap-2">
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search table..." style="width: 250px;">
+                    <button id="fetchBtn" class="btn btn-outline-info btn-sm text-nowrap"><i class="fa-solid fa-rotate me-1"></i>Refresh Data</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table id="resultsTable" class="table table-hover table-striped mb-0">
+                    <thead>
+                        <tr id="tableHeader"></tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card mt-4">
+            <div class="card-header" style="background: linear-gradient(to right, #434343 0%, #000000 100%);"><i class="fa-solid fa-terminal me-2"></i>System Log</div>
+            <div class="card-body p-0">
+                <div id="log" class="log-container rounded-bottom" style="border-top-left-radius: 0; border-top-right-radius: 0;"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="app.js"></script>
+</body>
+</html>
