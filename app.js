@@ -457,15 +457,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-             }
-
-                if (rowIndex === 0) {
-                    tableHeader.appendChild(el);
-                } else {
-                    tr.appendChild(el);
-                }
-            });
-            if (rowIndex > 0) tableBody.appendChild(tr);
-        });
-    }
-});
