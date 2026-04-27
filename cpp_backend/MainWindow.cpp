@@ -104,8 +104,10 @@ void MainWindow::setupUi() {
 
     // Step 2: Invoice IDs
     QGroupBox *step2 = new QGroupBox("Step 2: Enter Invoice IDs (one per line)", this);
+    step2->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     QVBoxLayout *v2 = new QVBoxLayout(step2);
     m_idsEdit = new QPlainTextEdit(this);
+    m_idsEdit->setFixedHeight(80); // Fixed height to prevent expanding
     v2->addWidget(m_idsEdit);
     layout->addWidget(step2);
 
@@ -153,7 +155,7 @@ void MainWindow::setupUi() {
     m_tableView->setModel(m_proxyModel);
     vData->addWidget(m_tableView);
     
-    layout->addWidget(dataGroup);
+    layout->addWidget(dataGroup, 1); // Added stretch factor 1 so it takes all available vertical space
 
     connect(m_fetchBtn, &QPushButton::clicked, this, &MainWindow::fetchSheetData);
     connect(m_filterEdit, &QLineEdit::textChanged, this, &MainWindow::onFilterChanged);
