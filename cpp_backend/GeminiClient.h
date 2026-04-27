@@ -9,7 +9,9 @@
 class GeminiClient : public QObject {
     Q_OBJECT
 public:
-    explicit GeminiClient(const QString& apiKey, QObject *parent = nullptr);
+    explicit GeminiClient(const QString& apiKey, const QString& modelName, QObject *parent = nullptr);
+    void setApiKey(const QString& apiKey) { m_apiKey = apiKey; }
+    void setModelName(const QString& modelName) { m_modelName = modelName; }
     void processImage(const QString& imagePath, const QStringList& clientIds);
 
 signals:
@@ -23,6 +25,7 @@ private slots:
 
 private:
     QString m_apiKey;
+    QString m_modelName;
     QNetworkAccessManager *m_networkManager;
     QStringList m_clientIds;
     QString m_fileUri;

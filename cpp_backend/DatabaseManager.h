@@ -15,6 +15,10 @@ public:
     bool existsLocally(const QString& bill, const QString& container, const QString& invoice);
     bool saveBatch(const QList<DataRow>& rows);
 
+    // Cache fetched sheet data
+    bool saveSheetCache(const QList<QList<CellData>>& rows);
+    QList<QList<CellData>> loadSheetCache();
+
 private:
     QSqlDatabase m_db;
     QString m_dbPath;

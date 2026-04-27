@@ -6,6 +6,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QLabel>
+#include <QGroupBox>
 #include <QTableView>
 #include <QStandardItemModel>
 #include <QSortFilterProxyModel>
@@ -30,6 +31,9 @@ private slots:
     void onGoogleFinished();
     void onGoogleError(const QString& message);
     void log(const QString& message);
+    void saveConfig();
+    void toggleConfig();
+    void toggleLog();
 
 private:
     QLineEdit *m_imgPathEdit;
@@ -43,11 +47,30 @@ private:
     QStandardItemModel *m_tableModel;
     QSortFilterProxyModel *m_proxyModel;
 
+    // Config UI
+    QGroupBox *m_configGroup;
+    QLineEdit *m_geminiKeyEdit;
+    QLineEdit *m_aiModelEdit;
+    QLineEdit *m_spreadsheetIdEdit;
+    QPlainTextEdit *m_googleSecretEdit;
+    QPushButton *m_saveConfigBtn;
+    QPushButton *m_toggleConfigBtn;
+
+    // Log UI
+    QGroupBox *m_logGroup;
+    QPushButton *m_toggleLogBtn;
+
     GeminiClient *m_geminiClient;
     GoogleSheetsClient *m_sheetsClient;
     DatabaseManager *m_dbManager;
 
     void setupUi();
+    void loadConfig();
+
+    QString m_geminiApiKey;
+    QString m_aiModelName;
+    QString m_spreadsheetId;
+    QString m_googleSecretData; // Can be path or raw JSON
 };
 
 #endif // MAINWINDOW_H

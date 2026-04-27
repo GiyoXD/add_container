@@ -3,6 +3,12 @@
 
 #include <QString>
 #include <QStringList>
+#include <QColor>
+
+struct CellData {
+    QString value;
+    QColor bgColor;
+};
 
 struct DataRow {
     QString bill;

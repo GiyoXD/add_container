@@ -6,9 +6,12 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QDir>
+#include <QSettings>
+#include <QFileInfo>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setupUi();
+    loadConfig();
 
     QString baseDir = QCoreApplication::applicationDirPath();
     // In dev, it might be in the source dir
@@ -21,8 +24,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         log("CRITICAL: Failed to setup local database.");
     }
 
-    m_geminiClient = new GeminiClient("YOUR_GEMINI_API_KEY", this);
-    m_sheetsClient = new GoogleSheetsClient(baseDir + "/secret.json", "1piQv1mpEWWBw3hUITAD2Q5ZHdvnqP38n0OLUbK5Y1Hk", this);
+    // Load cached data if any
+    QList<QList<CellData>> cachedRows = m_dbManager->loadSheetCache();
+    if (!cachedRows.isEmpty()) {
+        log(QString("Loaded %1 rows from local cache.").arg(cachedRows.size()));
+        onDataFetched(cachedRows);
+    }
+
+    m_geminiClient = new GeminiClient(m_geminiApiKey, m_aiModelName, this);
+    m_sheetsClient = new GoogleSheetsClient(m_googleSecretData, m_spreadsheetId, this);
 
     connect(m_geminiClient, &GeminiClient::statusUpdate, this, &MainWindow::log);
     connect(m_geminiClient, &GeminiClient::finished, this, &MainWindow::onGeminiFinished);
@@ -44,7 +54,44 @@ void MainWindow::setupUi() {
     QLabel *title = new QLabel("Vision Logistics Data Entry (C++)", this);
     title->setStyleSheet("font-size: 18pt; font-weight: bold;");
     title->setAlignment(Qt::AlignCenter);
-    layout->addWidget(title);
+    
+    m_toggleConfigBtn = new QPushButton("⚙ Settings", this);
+    m_toggleConfigBtn->setFixedWidth(100);
+    
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->addWidget(title);
+    headerLayout->addWidget(m_toggleConfigBtn);
+    layout->addLayout(headerLayout);
+
+    // Config Panel (Hidden by default)
+    m_configGroup = new QGroupBox("Configuration", this);
+    QVBoxLayout *vConfig = new QVBoxLayout(m_configGroup);
+    
+    m_geminiKeyEdit = new QLineEdit(this);
+    m_geminiKeyEdit->setPlaceholderText("Gemini API Key");
+    m_aiModelEdit = new QLineEdit(this);
+    m_aiModelEdit->setPlaceholderText("Gemini Model Name (e.g., gemini-1.5-flash)");
+    m_spreadsheetIdEdit = new QLineEdit(this);
+    m_spreadsheetIdEdit->setPlaceholderText("Spreadsheet ID");
+    m_googleSecretEdit = new QPlainTextEdit(this);
+    m_googleSecretEdit->setPlaceholderText("Google Secret JSON (Paste content here)");
+    m_googleSecretEdit->setMaximumHeight(100);
+    
+    m_saveConfigBtn = new QPushButton("Save & Update Credentials", this);
+    m_saveConfigBtn->setStyleSheet("background-color: #2196F3; color: white;");
+    
+    vConfig->addWidget(new QLabel("Gemini API Key:"));
+    vConfig->addWidget(m_geminiKeyEdit);
+    vConfig->addWidget(new QLabel("Gemini AI Model:"));
+    vConfig->addWidget(m_aiModelEdit);
+    vConfig->addWidget(new QLabel("Spreadsheet ID:"));
+    vConfig->addWidget(m_spreadsheetIdEdit);
+    vConfig->addWidget(new QLabel("Google Secret JSON:"));
+    vConfig->addWidget(m_googleSecretEdit);
+    vConfig->addWidget(m_saveConfigBtn);
+    
+    m_configGroup->setVisible(false);
+    layout->addWidget(m_configGroup);
 
     // Step 1: Image Selection
     QGroupBox *step1 = new QGroupBox("Step 1: Image Selection", this);
@@ -67,21 +114,27 @@ void MainWindow::setupUi() {
     m_processBtn->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 10px;");
     layout->addWidget(m_processBtn);
 
+    // Log Toggle
+    m_toggleLogBtn = new QPushButton("Show Status Log", this);
+    m_toggleLogBtn->setFixedWidth(120);
+    layout->addWidget(m_toggleLogBtn);
+
     // Log
-    QGroupBox *logGroup = new QGroupBox("Status/Log", this);
-    QVBoxLayout *vLog = new QVBoxLayout(logGroup);
+    m_logGroup = new QGroupBox("Status/Log", this);
+    QVBoxLayout *vLog = new QVBoxLayout(m_logGroup);
     m_logEdit = new QPlainTextEdit(this);
     m_logEdit->setReadOnly(true);
     m_logEdit->setBackgroundRole(QPalette::AlternateBase);
     vLog->addWidget(m_logEdit);
-    layout->addWidget(logGroup);
+    m_logGroup->setVisible(false);
+    layout->addWidget(m_logGroup);
 
     // Data Viewer
     QGroupBox *dataGroup = new QGroupBox("2026 Sheet Data", this);
     QVBoxLayout *vData = new QVBoxLayout(dataGroup);
     
     QHBoxLayout *hDataControls = new QHBoxLayout();
-    m_fetchBtn = new QPushButton("Fetch 2026 Data", this);
+    m_fetchBtn = new QPushButton("Update 2026 Data", this);
     m_filterEdit = new QLineEdit(this);
     m_filterEdit->setPlaceholderText("Search...");
     hDataControls->addWidget(m_fetchBtn);
@@ -107,6 +160,11 @@ void MainWindow::setupUi() {
 
     connect(browseBtn, &QPushButton::clicked, this, &MainWindow::browseImage);
     connect(m_processBtn, &QPushButton::clicked, this, &MainWindow::startProcessing);
+
+    connect(m_toggleConfigBtn, &QPushButton::clicked, this, &MainWindow::toggleConfig);
+    connect(m_saveConfigBtn, &QPushButton::clicked, this, &MainWindow::saveConfig);
+
+    connect(m_toggleLogBtn, &QPushButton::clicked, this, &MainWindow::toggleLog);
 
     resize(800, 900);
 }
@@ -203,6 +261,9 @@ void MainWindow::fetchSheetData() {
 void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     m_tableModel->removeRows(0, m_tableModel->rowCount());
 
+    // Cache the data
+    m_dbManager->saveSheetCache(rows);
+
     for (auto it = rows.rbegin(); it != rows.rend(); ++it) {
         const QList<CellData>& row = *it;
         if (row.isEmpty()) continue;
@@ -249,10 +310,110 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     }
     
     m_fetchBtn->setEnabled(true);
-    m_fetchBtn->setText("Fetch 2026 Data");
+    m_fetchBtn->setText("Update 2026 Data");
     log(QString("Fetched and displayed %1 rows.").arg(m_tableModel->rowCount()));
 }
 
 void MainWindow::onFilterChanged(const QString& text) {
     m_proxyModel->setFilterRegularExpression(text);
+}
+
+void MainWindow::toggleConfig() {
+    m_configGroup->setVisible(!m_configGroup->isVisible());
+    m_toggleConfigBtn->setText(m_configGroup->isVisible() ? "✖ Close" : "⚙ Settings");
+}
+
+void MainWindow::toggleLog() {
+    m_logGroup->setVisible(!m_logGroup->isVisible());
+    m_toggleLogBtn->setText(m_logGroup->isVisible() ? "Hide Status Log" : "Show Status Log");
+}
+
+void MainWindow::saveConfig() {
+    m_geminiApiKey = m_geminiKeyEdit->text().trimmed();
+    m_aiModelName = m_aiModelEdit->text().trimmed();
+    m_spreadsheetId = m_spreadsheetIdEdit->text().trimmed();
+    m_googleSecretData = m_googleSecretEdit->toPlainText().trimmed();
+
+    if (m_geminiApiKey.isEmpty() || m_aiModelName.isEmpty() || m_spreadsheetId.isEmpty() || m_googleSecretData.isEmpty()) {
+        QMessageBox::warning(this, "Error", "All fields are required.");
+        return;
+    }
+
+    // Save to INI
+    QString baseDir = QCoreApplication::applicationDirPath();
+    #ifdef QT_DEBUG
+    baseDir = QDir::currentPath();
+    #endif
+    
+    QSettings settings(baseDir + "/config.ini", QSettings::IniFormat);
+    settings.beginGroup("Credentials");
+    settings.setValue("GeminiApiKey", m_geminiApiKey);
+    settings.setValue("AiModelName", m_aiModelName);
+    settings.setValue("SpreadsheetId", m_spreadsheetId);
+    
+    // If it's JSON, save it as a special key, otherwise save as file path
+    if (m_googleSecretData.startsWith("{")) {
+        settings.setValue("GoogleSecretJSON", m_googleSecretData);
+        settings.remove("GoogleSecretFile");
+    } else {
+        settings.setValue("GoogleSecretFile", m_googleSecretData);
+        settings.remove("GoogleSecretJSON");
+    }
+    settings.endGroup();
+    settings.sync();
+
+    // Update clients
+    m_geminiClient->setApiKey(m_geminiApiKey);
+    m_geminiClient->setModelName(m_aiModelName);
+    m_sheetsClient->setSpreadsheetId(m_spreadsheetId);
+    m_sheetsClient->setServiceAccountData(m_googleSecretData);
+
+    log("Configuration updated and saved.");
+    toggleConfig(); // Hide after save
+}
+
+void MainWindow::loadConfig() {
+    QString baseDir = QCoreApplication::applicationDirPath();
+    #ifdef QT_DEBUG
+    baseDir = QDir::currentPath();
+    #endif
+
+    QString configPath = baseDir + "/config.ini";
+    QSettings settings(configPath, QSettings::IniFormat);
+
+    settings.beginGroup("Credentials");
+    m_geminiApiKey = settings.value("GeminiApiKey", "AIzaSyB4HLZDCPhiQj0g3oAKOnIa13Bren9sIIk").toString();
+    m_aiModelName = settings.value("AiModelName", "gemini-1.5-flash").toString();
+    m_spreadsheetId = settings.value("SpreadsheetId", "1piQv1mpEWWBw3hUITAD2Q5ZHdvnqP38n0OLUbK5Y1Hk").toString();
+    
+    if (settings.contains("GoogleSecretJSON")) {
+        m_googleSecretData = settings.value("GoogleSecretJSON").toString();
+    } else {
+        QString secretFile = settings.value("GoogleSecretFile", "secret.json").toString();
+        QString fullPath;
+        if (QFileInfo(secretFile).isRelative()) {
+            fullPath = baseDir + "/" + secretFile;
+        } else {
+            fullPath = secretFile;
+        }
+        m_googleSecretData = fullPath;
+    }
+    settings.endGroup();
+
+    // Populate UI
+    m_geminiKeyEdit->setText(m_geminiApiKey);
+    m_aiModelEdit->setText(m_aiModelName);
+    m_spreadsheetIdEdit->setText(m_spreadsheetId);
+    
+    // If m_googleSecretData is a file path, try to read it to show JSON in UI
+    if (!m_googleSecretData.trimmed().startsWith("{")) {
+        QFile file(m_googleSecretData);
+        if (file.open(QIODevice::ReadOnly)) {
+            m_googleSecretEdit->setPlainText(file.readAll());
+        } else {
+            m_googleSecretEdit->setPlainText(m_googleSecretData); // Just show path if can't read
+        }
+    } else {
+        m_googleSecretEdit->setPlainText(m_googleSecretData);
+    }
 }

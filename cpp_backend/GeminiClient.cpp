@@ -7,8 +7,8 @@
 #include <QDebug>
 #include <QFileInfo>
 
-GeminiClient::GeminiClient(const QString& apiKey, QObject *parent)
-    : QObject(parent), m_apiKey(apiKey) {
+GeminiClient::GeminiClient(const QString& apiKey, const QString& modelName, QObject *parent)
+    : QObject(parent), m_apiKey(apiKey), m_modelName(modelName) {
     m_networkManager = new QNetworkAccessManager(this);
 }
 
@@ -74,7 +74,8 @@ void GeminiClient::onUploadFinished() {
 }
 
 void GeminiClient::generateContent() {
-    QUrl url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + m_apiKey);
+    QUrl url(QString("https://generativelanguage.googleapis.com/v1beta/models/%1:generateContent?key=%2")
+             .arg(m_modelName).arg(m_apiKey));
     
     QJsonObject requestBody;
     QJsonArray contents;

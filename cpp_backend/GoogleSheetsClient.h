@@ -8,17 +8,14 @@
 #include <QColor>
 #include "DataRow.h"
 
-struct CellData {
-    QString value;
-    QColor bgColor;
-};
-
 class GoogleSheetsClient : public QObject {
     Q_OBJECT
 public:
     enum class PendingAction { None, Append, Fetch };
 
-    explicit GoogleSheetsClient(const QString& serviceAccountPath, const QString& spreadsheetId, QObject *parent = nullptr);
+    explicit GoogleSheetsClient(const QString& serviceAccountData, const QString& spreadsheetId, QObject *parent = nullptr);
+    void setSpreadsheetId(const QString& id) { m_spreadsheetId = id; }
+    void setServiceAccountData(const QString& data) { m_serviceAccountData = data; m_accessToken.clear(); }
     void appendRows(const QList<DataRow>& rows);
     void fetchSheetData(const QString& range);
 
@@ -34,7 +31,7 @@ private slots:
     void onFetchFinished();
 
 private:
-    QString m_serviceAccountPath;
+    QString m_serviceAccountData;
     QString m_spreadsheetId;
     QString m_accessToken;
     QNetworkAccessManager *m_networkManager;

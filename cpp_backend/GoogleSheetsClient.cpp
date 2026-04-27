@@ -14,8 +14,8 @@
 #include <ncrypt.h>
 #endif
 
-GoogleSheetsClient::GoogleSheetsClient(const QString& serviceAccountPath, const QString& spreadsheetId, QObject *parent)
-    : QObject(parent), m_serviceAccountPath(serviceAccountPath), m_spreadsheetId(spreadsheetId) {
+GoogleSheetsClient::GoogleSheetsClient(const QString& serviceAccountData, const QString& spreadsheetId, QObject *parent)
+    : QObject(parent), m_serviceAccountData(serviceAccountData), m_spreadsheetId(spreadsheetId) {
     m_networkManager = new QNetworkAccessManager(this);
 }
 
@@ -58,15 +58,31 @@ void GoogleSheetsClient::requestAccessToken() {
 }
 
 QString GoogleSheetsClient::createJwt() {
-    QFile file(m_serviceAccountPath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        emit error("Service account file not found.");
+    QByteArray jsonData;
+    if (m_serviceAccountData.trimmed().startsWith("{")) {
+        jsonData = m_serviceAccountData.toUtf8();
+    } else {
+        QFile file(m_serviceAccountData);
+        if (!file.open(QIODevice::ReadOnly)) {
+            emit error("Service account file not found: " + m_serviceAccountData);
+            return "";
+        }
+        jsonData = file.readAll();
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+    if (doc.isNull()) {
+        emit error("Invalid Service Account JSON.");
         return "";
     }
-    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     QJsonObject obj = doc.object();
     QString privateKeyStr = obj["private_key"].toString();
     QString clientEmail = obj["client_email"].toString();
+
+    if (privateKeyStr.isEmpty() || clientEmail.isEmpty()) {
+        emit error("Missing private_key or client_email in Service Account JSON.");
+        return "";
+    }
 
     // Remove PEM headers and footers, and whitespace
     privateKeyStr.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\n", "").replace("\r", "").trimmed();
