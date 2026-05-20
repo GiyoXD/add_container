@@ -550,7 +550,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableHeader.appendChild(actionTh);
             } else {
                 const actionTd = document.createElement('td');
-                actionTd.setAttribute('data-label', 'CROSS BORDER');
                 actionTd.className = 'action-cell';
                 
                 // Find invoice number
@@ -562,14 +561,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Create container div for styling
                 const container = document.createElement('div');
-                container.className = 'd-flex align-items-center justify-content-end gap-1 w-100';
+                container.className = 'd-flex align-items-center justify-content-between w-100 py-1';
+
+                // Label for mobile view (hidden on desktop)
+                const label = document.createElement('span');
+                label.className = 'd-md-none fw-bold text-muted small text-uppercase';
+                label.style.letterSpacing = '0.5px';
+                label.style.fontSize = '0.75rem';
+                label.textContent = 'CROSS BORDER';
+                container.appendChild(label);
+
+                // Controls wrapper
+                const controls = document.createElement('div');
+                controls.className = 'd-flex align-items-center gap-2 ms-auto';
 
                 const dateInput = document.createElement('input');
                 dateInput.type = 'date';
                 dateInput.className = 'form-control form-control-sm border-date-input';
-                dateInput.style.maxWidth = '130px';
-                dateInput.style.padding = '2px 5px';
-                dateInput.style.fontSize = '0.8rem';
+                dateInput.style.width = '145px';
+                dateInput.style.padding = '4px 8px';
+                dateInput.style.fontSize = '0.85rem';
                 
                 const today = new Date();
                 const year = today.getFullYear();
@@ -578,8 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateInput.value = `${year}-${month}-${day}`;
 
                 const commitBtn = document.createElement('button');
-                commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1 px-2';
-                commitBtn.style.fontSize = '0.75rem';
+                commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
+                commitBtn.style.fontSize = '0.8rem';
+                commitBtn.style.whiteSpace = 'nowrap';
                 commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
                 
                 commitBtn.addEventListener('click', (e) => {
@@ -593,8 +605,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`Commit simulation: Invoice:`, invoiceId, `Date:`, selectedDate);
                 });
 
-                container.appendChild(dateInput);
-                container.appendChild(commitBtn);
+                controls.appendChild(dateInput);
+                controls.appendChild(commitBtn);
+                container.appendChild(controls);
                 actionTd.appendChild(container);
                 tr.appendChild(actionTd);
             }
