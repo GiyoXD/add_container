@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QSettings>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setupUi();
@@ -55,11 +56,14 @@ void MainWindow::setupUi() {
     title->setStyleSheet("font-size: 18pt; font-weight: bold;");
     title->setAlignment(Qt::AlignCenter);
     
+    m_toggleAiInputBtn = new QPushButton("⚡ AI Data Entry", this);
+    m_toggleAiInputBtn->setFixedWidth(120);
     m_toggleConfigBtn = new QPushButton("⚙ Settings", this);
     m_toggleConfigBtn->setFixedWidth(100);
     
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->addWidget(title);
+    headerLayout->addWidget(m_toggleAiInputBtn);
     headerLayout->addWidget(m_toggleConfigBtn);
     layout->addLayout(headerLayout);
 
@@ -93,28 +97,40 @@ void MainWindow::setupUi() {
     m_configGroup->setVisible(false);
     layout->addWidget(m_configGroup);
 
-    // Step 1: Image Selection
-    QGroupBox *step1 = new QGroupBox("Step 1: Image Selection", this);
-    QHBoxLayout *h1 = new QHBoxLayout(step1);
+    // Compact AI Data Entry Tool (Hidden by default)
+    m_aiInputGroup = new QGroupBox("AI Data Entry Tool", this);
+    QHBoxLayout *hAi = new QHBoxLayout(m_aiInputGroup);
+    
+    // Manifest Image
+    QVBoxLayout *vImage = new QVBoxLayout();
+    vImage->addWidget(new QLabel("Manifest Image:", this));
+    QHBoxLayout *hImageBrowse = new QHBoxLayout();
     m_imgPathEdit = new QLineEdit(this);
+    m_imgPathEdit->setPlaceholderText("Select image path...");
     QPushButton *browseBtn = new QPushButton("Browse", this);
-    h1->addWidget(m_imgPathEdit);
-    h1->addWidget(browseBtn);
-    layout->addWidget(step1);
+    hImageBrowse->addWidget(m_imgPathEdit);
+    hImageBrowse->addWidget(browseBtn);
+    vImage->addLayout(hImageBrowse);
+    hAi->addLayout(vImage, 2);
 
-    // Step 2: Invoice IDs
-    QGroupBox *step2 = new QGroupBox("Step 2: Enter Invoice IDs (one per line)", this);
-    step2->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-    QVBoxLayout *v2 = new QVBoxLayout(step2);
-    m_idsEdit = new QPlainTextEdit(this);
-    m_idsEdit->setFixedHeight(80); // Fixed height to prevent expanding
-    v2->addWidget(m_idsEdit);
-    layout->addWidget(step2);
+    // Invoice IDs
+    QVBoxLayout *vIds = new QVBoxLayout();
+    vIds->addWidget(new QLabel("Invoice IDs (comma-separated):", this));
+    m_idsEdit = new QLineEdit(this);
+    m_idsEdit->setPlaceholderText("INV-2026-001, INV-2026-002");
+    vIds->addWidget(m_idsEdit);
+    hAi->addLayout(vIds, 2);
 
-    // Step 3: Process
-    m_processBtn = new QPushButton("Step 3: Process & Sync", this);
-    m_processBtn->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 10px;");
-    layout->addWidget(m_processBtn);
+    // Extract & Sync button
+    QVBoxLayout *vProcess = new QVBoxLayout();
+    vProcess->addWidget(new QLabel("", this)); // alignment spacer label
+    m_processBtn = new QPushButton("Extract & Sync", this);
+    m_processBtn->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 6px;");
+    vProcess->addWidget(m_processBtn);
+    hAi->addLayout(vProcess, 1);
+
+    m_aiInputGroup->setVisible(false);
+    layout->addWidget(m_aiInputGroup);
 
     // Log Toggle
     m_toggleLogBtn = new QPushButton("Show Status Log", this);
@@ -167,8 +183,9 @@ void MainWindow::setupUi() {
     connect(m_saveConfigBtn, &QPushButton::clicked, this, &MainWindow::saveConfig);
 
     connect(m_toggleLogBtn, &QPushButton::clicked, this, &MainWindow::toggleLog);
+    connect(m_toggleAiInputBtn, &QPushButton::clicked, this, &MainWindow::toggleAiInput);
 
-    resize(800, 900);
+    resize(900, 650);
 }
 
 void MainWindow::browseImage() {
@@ -180,7 +197,7 @@ void MainWindow::browseImage() {
 
 void MainWindow::startProcessing() {
     QString imgPath = m_imgPathEdit->text().trimmed();
-    QString idsRaw = m_idsEdit->toPlainText().trimmed();
+    QString idsRaw = m_idsEdit->text().trimmed();
 
     if (imgPath.isEmpty() || idsRaw.isEmpty()) {
         QMessageBox::warning(this, "Error", "Please select an image and enter at least one ID.");
@@ -192,7 +209,7 @@ void MainWindow::startProcessing() {
         imgPath = QUrl(imgPath).toLocalFile();
     }
 
-    QStringList ids = idsRaw.split('\n', Qt::SkipEmptyParts);
+    QStringList ids = idsRaw.split(QRegularExpression("[,\\n]+"), Qt::SkipEmptyParts);
     for (QString& id : ids) id = id.trimmed();
 
     m_processBtn->setEnabled(false);
@@ -206,7 +223,7 @@ void MainWindow::onGeminiFinished(const QList<DataRow>& rows) {
     if (rows.isEmpty()) {
         log("Error: Gemini could not extract any data.");
         m_processBtn->setEnabled(true);
-        m_processBtn->setText("Step 3: Process & Sync");
+        m_processBtn->setText("Extract & Sync");
         return;
     }
 
@@ -227,26 +244,26 @@ void MainWindow::onGeminiFinished(const QList<DataRow>& rows) {
     } else {
         log(QString("Process complete. All %1 rows already exist.").arg(skipCount));
         m_processBtn->setEnabled(true);
-        m_processBtn->setText("Step 3: Process & Sync");
+        m_processBtn->setText("Extract & Sync");
     }
 }
 
 void MainWindow::onGeminiError(const QString& message) {
     log("GEMINI ERROR: " + message);
     m_processBtn->setEnabled(true);
-    m_processBtn->setText("Step 3: Process & Sync");
+    m_processBtn->setText("Extract & Sync");
 }
 
 void MainWindow::onGoogleFinished() {
     log("Process complete successfully.");
     m_processBtn->setEnabled(true);
-    m_processBtn->setText("Step 3: Process & Sync");
+    m_processBtn->setText("Extract & Sync");
 }
 
 void MainWindow::onGoogleError(const QString& message) {
     log("GOOGLE ERROR: " + message);
     m_processBtn->setEnabled(true);
-    m_processBtn->setText("Step 3: Process & Sync");
+    m_processBtn->setText("Extract & Sync");
 }
 
 void MainWindow::log(const QString& message) {
@@ -330,6 +347,11 @@ void MainWindow::toggleConfig() {
 void MainWindow::toggleLog() {
     m_logGroup->setVisible(!m_logGroup->isVisible());
     m_toggleLogBtn->setText(m_logGroup->isVisible() ? "Hide Status Log" : "Show Status Log");
+}
+
+void MainWindow::toggleAiInput() {
+    m_aiInputGroup->setVisible(!m_aiInputGroup->isVisible());
+    m_toggleAiInputBtn->setText(m_aiInputGroup->isVisible() ? "✖ Close AI Entry" : "⚡ AI Data Entry");
 }
 
 void MainWindow::saveConfig() {

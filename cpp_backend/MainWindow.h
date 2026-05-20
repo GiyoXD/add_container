@@ -34,10 +34,11 @@ private slots:
     void saveConfig();
     void toggleConfig();
     void toggleLog();
+    void toggleAiInput();
 
 private:
     QLineEdit *m_imgPathEdit;
-    QPlainTextEdit *m_idsEdit;
+    QLineEdit *m_idsEdit;
     QPlainTextEdit *m_logEdit;
     QPushButton *m_processBtn;
     
@@ -59,6 +60,10 @@ private:
     // Log UI
     QGroupBox *m_logGroup;
     QPushButton *m_toggleLogBtn;
+
+    // AI Input UI
+    QGroupBox *m_aiInputGroup;
+    QPushButton *m_toggleAiInputBtn;
 
     GeminiClient *m_geminiClient;
     GoogleSheetsClient *m_sheetsClient;
