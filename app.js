@@ -538,6 +538,67 @@ document.addEventListener('DOMContentLoaded', () => {
                     tr.appendChild(el);
                 }
             });
+
+            if (rowIndex === 0) {
+                const actionTh = document.createElement('th');
+                actionTh.textContent = 'CROSS BORDER';
+                actionTh.style.backgroundColor = '#34495e';
+                actionTh.style.color = 'white';
+                actionTh.style.textAlign = 'center';
+                actionTh.style.fontWeight = '600';
+                actionTh.style.padding = '15px 10px';
+                tableHeader.appendChild(actionTh);
+            } else {
+                const actionTd = document.createElement('td');
+                actionTd.setAttribute('data-label', 'CROSS BORDER');
+                actionTd.className = 'action-cell';
+                
+                // Find invoice number
+                let invoiceId = '';
+                const invCol = colMap.find(c => c.name === "INV NO");
+                if (invCol && row.values[invCol.index]) {
+                    invoiceId = row.values[invCol.index].effectiveValue?.stringValue || '';
+                }
+
+                // Create container div for styling
+                const container = document.createElement('div');
+                container.className = 'd-flex align-items-center justify-content-end gap-1 w-100';
+
+                const dateInput = document.createElement('input');
+                dateInput.type = 'date';
+                dateInput.className = 'form-control form-control-sm border-date-input';
+                dateInput.style.maxWidth = '130px';
+                dateInput.style.padding = '2px 5px';
+                dateInput.style.fontSize = '0.8rem';
+                
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${year}-${month}-${day}`;
+
+                const commitBtn = document.createElement('button');
+                commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1 px-2';
+                commitBtn.style.fontSize = '0.75rem';
+                commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
+                
+                commitBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const selectedDate = dateInput.value;
+                    if (!selectedDate) {
+                        alert("Please select a date first.");
+                        return;
+                    }
+                    alert(`Simulated: Committing date ${selectedDate} for Invoice ${invoiceId} to spreadsheet Column G.`);
+                    console.log(`Commit simulation: Invoice:`, invoiceId, `Date:`, selectedDate);
+                });
+
+                container.appendChild(dateInput);
+                container.appendChild(commitBtn);
+                actionTd.appendChild(container);
+                tr.appendChild(actionTd);
+            }
+
             if (rowIndex > 0) tableBody.appendChild(tr);
         });
     }

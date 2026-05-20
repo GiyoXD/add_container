@@ -228,6 +228,36 @@
                 width: 100% !important;
             }
         }
+        
+        /* Cross Border Column styling */
+        .border-date-input {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .border-date-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+        .commit-date-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            box-shadow: 0 2px 4px rgba(29, 78, 216, 0.15) !important;
+            transition: all 0.2s ease !important;
+        }
+        .commit-date-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+            transform: translateY(-1px);
+        }
+        .commit-date-btn:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
