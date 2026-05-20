@@ -491,10 +491,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Get Background Color
                 const bg = cell.effectiveFormat?.backgroundColor;
+                let hasCustomBg = false;
                 if (bg && rowIndex > 0) { // Only apply spreadsheet colors to data rows
                     const r = Math.round((bg.red || 0) * 255);
                     const g = Math.round((bg.green || 0) * 255);
                     const b = Math.round((bg.blue || 0) * 255);
+                    // Check if background is not white
+                    if (r < 255 || g < 255 || b < 255) {
+                        hasCustomBg = true;
+                    }
                     el.style.backgroundColor = `rgb(${r},${g},${b})`;
                     // Basic contrast check
                     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
@@ -505,6 +510,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     tableHeader.appendChild(el);
                 } else {
                     el.setAttribute('data-label', col.name);
+                    if (!val && !hasCustomBg) {
+                        el.classList.add('empty-cell');
+                    }
                     tr.appendChild(el);
                 }
             });
