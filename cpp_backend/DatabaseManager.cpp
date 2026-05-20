@@ -39,6 +39,7 @@ bool DatabaseManager::setupDatabase() {
             driver_name TEXT,
             cnee TEXT,
             date TEXT,
+            pallet_gross TEXT,
             PRIMARY KEY (bill, container_no, invoice_no)
         )
     )";
@@ -47,6 +48,9 @@ bool DatabaseManager::setupDatabase() {
         qCritical() << "Error creating table:" << query.lastError().text();
         return false;
     }
+
+    // Migration: Add pallet_gross column if it doesn't exist
+    query.exec("ALTER TABLE container_table ADD COLUMN pallet_gross TEXT;");
 
     QString createCacheTable = R"(
         CREATE TABLE IF NOT EXISTS sheet_cache (
@@ -86,8 +90,8 @@ bool DatabaseManager::saveBatch(const QList<DataRow>& rows) {
     QSqlQuery query;
     query.prepare(R"(
         INSERT OR IGNORE INTO container_table 
-        (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date, pallet_gross) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
     for (const auto& row : rows) {
@@ -100,6 +104,7 @@ bool DatabaseManager::saveBatch(const QList<DataRow>& rows) {
         query.addBindValue(row.driver_name);
         query.addBindValue(row.cnee);
         query.addBindValue(row.date);
+        query.addBindValue(row.pallet_gross);
 
         if (!query.exec()) {
             qWarning() << "Error inserting row:" << query.lastError().text();

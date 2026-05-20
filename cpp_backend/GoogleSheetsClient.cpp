@@ -190,6 +190,9 @@ void GoogleSheetsClient::executePendingAction() {
             rowVals.append(row.driver_name);
             rowVals.append(row.cnee);
             rowVals.append(row.date);
+            rowVals.append(""); // Column J
+            rowVals.append(""); // Column K
+            rowVals.append(row.pallet_gross); // Column L
             values.append(rowVals);
         }
         body["values"] = values;

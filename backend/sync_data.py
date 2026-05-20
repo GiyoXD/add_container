@@ -12,7 +12,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 # The ID from your specific shipping sheet
 SPREADSHEET_ID = '1piQv1mpEWWBw3hUITAD2Q5ZHdvnqP38n0OLUbK5Y1Hk'
 # Range: Adjust "Sheet1" to your tab name. T50000 covers your large dataset.
-DATA_RANGE = "CONTAINER!A2:J5000" 
+DATA_RANGE = "CONTAINER!A2:L5000" 
 
 def setup_database():
     """Creates the SQLite table if it doesn't exist."""
@@ -29,9 +29,13 @@ def setup_database():
             driver_name TEXT,
             cnee TEXT,
             date TEXT,
+            pallet_gross TEXT,
             PRIMARY KEY (bill, container_no, invoice_no)
-        )
     ''')
+    try:
+        cursor.execute("ALTER TABLE container_table ADD COLUMN pallet_gross TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     return conn
 
@@ -66,12 +70,13 @@ def sync_sheets_to_sqlite():
             if not any(row):
                 continue
             
-            # Ensure row has at least 9 columns
-            while len(row) < 9:
+            # Ensure row has at least 12 columns
+            while len(row) < 12:
                 row.append("")
             
-            # Take only the first 9 columns
-            clean_data.append(tuple(row[:9]))
+            # Take columns A to I (index 0 to 8) and column L (index 11)
+            row_data = (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[11])
+            clean_data.append(row_data)
 
         # 4. Save to SQLite
         conn = setup_database()
@@ -80,8 +85,8 @@ def sync_sheets_to_sqlite():
         # INSERT OR IGNORE avoids errors with duplicate BILL/INVOICE numbers
         cursor.executemany('''
             INSERT OR IGNORE INTO container_table 
-            (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date, pallet_gross)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', clean_data)
         
         conn.commit()

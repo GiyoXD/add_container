@@ -144,8 +144,8 @@ void MainWindow::setupUi() {
     vData->addLayout(hDataControls);
 
     m_tableView = new QTableView(this);
-    m_tableModel = new QStandardItemModel(0, 6, this);
-    m_tableModel->setHorizontalHeaderLabels({"Invoice No", "Container No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)"});
+    m_tableModel = new QStandardItemModel(0, 7, this);
+    m_tableModel->setHorizontalHeaderLabels({"Invoice No", "Container No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)"});
     
     m_proxyModel = new QSortFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_tableModel);
@@ -257,7 +257,7 @@ void MainWindow::fetchSheetData() {
     m_fetchBtn->setEnabled(false);
     m_fetchBtn->setText("Fetching...");
     log("Requesting data from 2026 sheet...");
-    m_sheetsClient->fetchSheetData("2026!A:J");
+    m_sheetsClient->fetchSheetData("2026!A:L");
 }
 
 void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
@@ -285,6 +285,7 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
 
         CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
         CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
+        CellData c_pallet2026 = row.size() > 11 ? row[11] : CellData{"", Qt::white};
 
         // Skip header row if it is one
         if (c_invoice.value.toLower() == "invoice_no" || c_invoice.value.toLower() == "invoice") continue;
@@ -307,6 +308,7 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
         addItem(c_truck);
         addItem(c_container2026);
         addItem(c_bill2026);
+        addItem(c_pallet2026);
         
         m_tableModel->appendRow(items);
     }

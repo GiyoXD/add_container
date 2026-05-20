@@ -88,7 +88,7 @@ void GeminiClient::generateContent() {
     QJsonObject textPart;
     textPart["text"] = R"(
     Analyze shipping spreadsheet image.
-    Extract all data rows. Map to exactly these 9 columns in order:
+    Extract all data rows. Map to exactly these 10 columns in order:
     
     1. TBL NO (If header is "Booking", map to this. This is the BILL)
     2. SHIPPER (The invoice ID)
@@ -99,6 +99,7 @@ void GeminiClient::generateContent() {
     7. DRIVER NAME
     8. CNEE
     9. DATE
+    10. PALLET: GROSS (The pallet gross weight, often labeled "p: gross" or "pallet gross" or similar. Extract the raw weight value, e.g. "1234.56" or "1234")
 
     Return ONLY CSV format, one row per line. No headers. No labels.
     Use comma separator. Omit or replace internal commas with space.
@@ -175,6 +176,9 @@ void GeminiClient::onGenerateFinished() {
         if (line.isEmpty()) continue;
         
         QStringList items = line.split(',');
+        while (items.size() < 10) {
+            items.append("");
+        }
         DataRow row = DataRow::fromCsvRow(items);
         
         if (i < m_clientIds.size()) {

@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Constants
     const PROMPT = `
     Analyze this image of a shipping spreadsheet.
-    Extract all data rows. For each row, extract the following 9 columns exactly in this order:
+    Extract all data rows. For each row, extract the following 10 columns exactly in this order:
     1. TBL NO (This is the BILL)
     2. SHIPPER (The invoice ID)
     3. CONTAINER NO.
@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     7. DRIVER NAME
     8. CNEE
     9. DATE
+    10. PALLET: GROSS (The pallet gross weight, often labeled "p: gross" or "pallet gross" or similar. Extract the raw weight value, e.g. "1234.56" or "1234")
 
     Return ONLY a CSV format with one row per line. Do not include headers, labels, or any other text.
     Use a comma as the separator. If a value contains a comma, omit it or replace with a space.
@@ -287,11 +288,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const lines = text.trim().split('\n');
         const rows = lines.map((line, index) => {
             const cols = line.split(',').map(c => c.trim());
+            while (cols.length < 10) {
+                cols.push('');
+            }
+            const finalCols = cols.slice(0, 10);
             // Overwrite invoice_no (column 2) with provided ID if available
             if (index < clientIds.length) {
-                cols[1] = clientIds[index];
+                finalCols[1] = clientIds[index];
             }
-            return cols;
+            return finalCols;
         });
 
         return rows;
@@ -329,7 +334,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function appendToGoogleSheets(token, spreadsheetId, rows) {
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CONTAINER!A1:append?valueInputOption=USER_ENTERED`;
-        const body = { values: rows };
+        const formattedRows = rows.map(row => {
+            const r = [...row];
+            while (r.length < 10) {
+                r.push('');
+            }
+            return [...r.slice(0, 9), '', '', r[9]];
+        });
+        const body = { values: formattedRows };
 
         const resp = await fetch(url, {
             method: 'POST',
@@ -382,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const headers = rowData[0].values.map(v => (v.effectiveValue?.stringValue || '').toUpperCase());
         const targetCols = [
             "CLIENT", "INV NO", "REF NO", "TYPE", "INV DAT", 
-            "EXPRESS CO", "CONTAINER", "BILL"
+            "EXPRESS CO", "CONTAINER", "BILL", "PALLET: GROSS"
         ];
         
         const colMap = targetCols.map(tc => ({

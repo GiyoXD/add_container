@@ -20,6 +20,7 @@ struct DataRow {
     QString driver_name;
     QString cnee;
     QString date;
+    QString pallet_gross;
 
     static DataRow fromCsvRow(const QStringList& items) {
         DataRow row;
@@ -32,11 +33,12 @@ struct DataRow {
         if (items.size() >= 7) row.driver_name = items[6].trimmed();
         if (items.size() >= 8) row.cnee = items[7].trimmed();
         if (items.size() >= 9) row.date = items[8].trimmed();
+        if (items.size() >= 10) row.pallet_gross = items[9].trimmed();
         return row;
     }
 
     QStringList toStringList() const {
-        return { bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date };
+        return { bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date, pallet_gross };
     }
 };
 

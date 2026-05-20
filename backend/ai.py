@@ -28,7 +28,7 @@ def get_db_connection():
     return sqlite3.connect(DB_FILE) 
 
 def setup_database(conn):
-    """Creates the SQLite table with all 9 columns."""
+    """Creates the SQLite table with all 10 columns."""
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS container_table (
@@ -41,9 +41,13 @@ def setup_database(conn):
             driver_name TEXT,
             cnee TEXT,
             date TEXT,
+            pallet_gross TEXT,
             PRIMARY KEY (bill, container_no, invoice_no)
-        )
     ''')
+    try:
+        cursor.execute("ALTER TABLE container_table ADD COLUMN pallet_gross TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 def exists_locally(cursor, bill, container, invoice):
@@ -63,7 +67,15 @@ def push_to_sheets_batch(data_rows):
             SERVICE_ACCOUNT_FILE, scopes=['https://www.googleapis.com/auth/spreadsheets'])
     service = build('sheets', 'v4', credentials=creds)
     
-    body = {'values': data_rows}
+    formatted_rows = []
+    for row in data_rows:
+        row_list = list(row)
+        while len(row_list) < 10:
+            row_list.append("")
+        formatted = row_list[:9] + ["", ""] + [row_list[9]]
+        formatted_rows.append(formatted)
+        
+    body = {'values': formatted_rows}
     service.spreadsheets().values().append(
         spreadsheetId=SPREADSHEET_ID,
         range=f"{DATA_TAB}!A1",
@@ -74,11 +86,17 @@ def push_to_sheets_batch(data_rows):
 def save_locally_batch(conn, data_rows):
     """Saves multiple rows to SQLite."""
     cursor = conn.cursor()
+    cleaned_rows = []
+    for row in data_rows:
+        r = list(row)
+        while len(r) < 10:
+            r.append("")
+        cleaned_rows.append(r[:10])
     cursor.executemany('''
         INSERT OR IGNORE INTO container_table 
-        (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', data_rows)
+        (bill, invoice_no, container_no, type, seal_no, truck_no, driver_name, cnee, date, pallet_gross) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', cleaned_rows)
     conn.commit()
 
 def process_image_with_gemini(image_path, client_ids):
@@ -88,7 +106,7 @@ def process_image_with_gemini(image_path, client_ids):
     
     prompt = """
     Analyze this image of a shipping spreadsheet.
-    Extract all data rows. For each row, extract the following 9 columns exactly in this order:
+    Extract all data rows. For each row, extract the following 10 columns exactly in this order:
     1. TBL NO (This is the BILL)
     2. SHIPPER (The invoice ID)
     3. CONTAINER NO.
@@ -98,6 +116,7 @@ def process_image_with_gemini(image_path, client_ids):
     7. DRIVER NAME
     8. CNEE
     9. DATE
+    10. PALLET: GROSS (The pallet gross weight, often labeled "p: gross" or "pallet gross" or similar. Extract the raw weight value, e.g. "1234.56" or "1234")
 
     Return ONLY a CSV format with one row per line. Do not include headers, labels, or any other text.
     Use a comma as the separator. If a value contains a comma, omit it or replace with a space.
@@ -119,13 +138,13 @@ def process_image_with_gemini(image_path, client_ids):
         if not line.strip():
             continue
         data = [item.strip() for item in line.split(',')]
-        if len(data) >= 9:
-            # Only keep first 9 columns
-            data = data[:9]
-            # Replace Shipper with provided client ID if available
-            if i < len(client_ids):
-                data[1] = client_ids[i]
-            extracted_rows.append(data)
+        while len(data) < 10:
+            data.append("")
+        data = data[:10]
+        # Replace Shipper with provided client ID if available
+        if i < len(client_ids):
+            data[1] = client_ids[i]
+        extracted_rows.append(data)
             
     return extracted_rows
 
