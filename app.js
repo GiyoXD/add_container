@@ -148,6 +148,36 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsContainer.classList.toggle('hidden');
     });
 
+    // Toggle Web URL Input
+    const toggleUrlInput = document.getElementById('toggleUrlInput');
+    const urlInputContainer = document.getElementById('urlInputContainer');
+    if (toggleUrlInput && urlInputContainer) {
+        toggleUrlInput.addEventListener('click', (e) => {
+            e.preventDefault();
+            urlInputContainer.classList.toggle('hidden');
+        });
+    }
+
+    // Toggle Data Entry Collapse
+    const toggleDataEntry = document.getElementById('toggleDataEntry');
+    const dataEntryBody = document.getElementById('dataEntryBody');
+    if (toggleDataEntry && dataEntryBody) {
+        toggleDataEntry.addEventListener('click', () => {
+            dataEntryBody.classList.toggle('hidden');
+            if (dataEntryBody.classList.contains('hidden')) {
+                toggleDataEntry.innerHTML = '<i class="fa-solid fa-plus me-1"></i>Expand';
+            } else {
+                toggleDataEntry.innerHTML = '<i class="fa-solid fa-minus me-1"></i>Collapse';
+            }
+        });
+        
+        // Auto-collapse on mobile devices on page load to keep screen space clean
+        if (window.innerWidth < 768) {
+            dataEntryBody.classList.add('hidden');
+            toggleDataEntry.innerHTML = '<i class="fa-solid fa-plus me-1"></i>Expand';
+        }
+    }
+
     searchInput.addEventListener('input', () => {
         if (currentSheetData) {
             renderTable(currentSheetData);
@@ -168,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     processBtn.addEventListener('click', async () => {
-        const invoiceIds = invoiceIdsInput.value.trim().split('\n').filter(id => id.trim());
+        const invoiceIds = invoiceIdsInput.value.trim().split(/[,\n]+/).map(id => id.trim()).filter(id => id.length > 0);
         const geminiKey = geminiKeyInput.value;
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;

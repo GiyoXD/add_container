@@ -251,43 +251,41 @@
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <!-- Step 1: Image Selection -->
-                <div class="card h-100">
-                    <div class="card-header"><i class="fa-solid fa-image me-2"></i>Step 1: Capture Shipping Manifest</div>
-                    <div class="card-body d-flex flex-column justify-content-center">
-                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-4 text-center mb-3" style="cursor: pointer; background-color: #f8f9fa; transition: all 0.3s;">
-                            <i class="fa-solid fa-cloud-arrow-up fs-1 text-primary mb-2"></i>
-                            <h5 class="mb-1">Drag & Drop Image Here</h5>
-                            <p class="text-muted small mb-2">or click to browse, or Ctrl+V to paste</p>
+        <!-- Compact AI Data Entry Tool -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center py-2" style="background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);">
+                <span class="fs-6 fw-bold text-white"><i class="fa-solid fa-bolt me-2 text-white"></i>AI Data Entry Tool</span>
+                <button id="toggleDataEntry" class="btn btn-xs btn-outline-light py-0 px-2" style="font-size: 0.75rem;"><i class="fa-solid fa-minus me-1"></i>Collapse</button>
+            </div>
+            <div id="dataEntryBody" class="card-body p-3">
+                <div class="row g-3 align-items-center">
+                    <!-- Step 1: Manifest Image -->
+                    <div class="col-md-4">
+                        <div id="dropZone" class="drop-zone border border-1 border-dashed rounded p-2 text-center" style="cursor: pointer; background-color: #f8f9fa; min-height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                            <div>
+                                <i class="fa-solid fa-cloud-arrow-up text-primary me-1"></i>
+                                <span id="fileNameDisplay" class="small text-muted">Click or drop manifest image</span>
+                            </div>
                             <input type="file" id="imageInput" class="d-none" accept="image/*">
-                            <img id="imagePreview" class="img-fluid rounded shadow-sm d-none mt-2 mx-auto" style="max-height: 150px; object-fit: contain;">
-                            <div id="fileNameDisplay" class="text-success fw-bold small mt-2 d-none"></div>
-                        </div>
-                        <div>
-                            <label class="form-label text-muted fw-bold small mb-1">Or enter Web URL (Local C:\ paths blocked by browsers)</label>
-                            <input type="text" id="imagePathInput" class="form-control form-control-sm" placeholder="https://...">
+                            <img id="imagePreview" class="img-fluid rounded shadow-sm d-none mt-1 mx-auto" style="max-height: 40px; object-fit: contain;">
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <!-- Step 2: Invoice IDs -->
-                <div class="card h-100 mt-4 mt-md-0">
-                    <div class="card-header" style="background: linear-gradient(to right, #ff0844 0%, #ffb199 100%);"><i class="fa-solid fa-list-ol me-2"></i>Step 2: Assign Invoices</div>
-                    <div class="card-body">
-                        <label class="form-label text-muted fw-bold small mb-2">Invoice IDs (One per line, ordered)</label>
-                        <textarea id="invoiceIds" class="form-control" rows="4" placeholder="INV-2026-001&#10;INV-2026-002"></textarea>
+                    <!-- Step 2: Invoice IDs -->
+                    <div class="col-md-4">
+                        <input type="text" id="invoiceIds" class="form-control form-control-sm" placeholder="Invoice IDs (comma or line separated)">
+                    </div>
+                    <!-- Step 3: Extract & Sync -->
+                    <div class="col-md-4">
+                        <button id="processBtn" class="btn btn-success btn-sm w-100 py-2"><i class="fa-solid fa-bolt me-1"></i>Extract & Sync</button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Step 3: Action -->
-        <div class="row my-4 align-items-center">
-            <div class="col-md-12 mb-3">
-                <button id="processBtn" class="btn btn-success btn-lg w-100 py-3 shadow-sm fs-5"><i class="fa-solid fa-bolt me-2"></i>Step 3: AI Extract & Sync to Sheets</button>
+                <!-- Optional Web URL input (collapsible/subtle link) -->
+                <div class="mt-2 d-flex justify-content-between align-items-center">
+                    <div id="urlInputContainer" class="hidden w-70">
+                        <input type="text" id="imagePathInput" class="form-control form-control-sm" placeholder="Image Web URL (https://...)">
+                    </div>
+                    <a href="#" id="toggleUrlInput" class="text-decoration-none small text-muted ms-auto"><i class="fa-solid fa-link me-1"></i>Use Web URL</a>
+                </div>
             </div>
         </div>
 
