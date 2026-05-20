@@ -14,6 +14,8 @@ __pycache__/
 # Database and secrets
 *.db
 secret.json
+backend/secret.json
+cpp_backend/secret.json
 .env
 .env_ready
 

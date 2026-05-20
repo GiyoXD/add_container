@@ -6,6 +6,9 @@
 #include <QJsonArray>
 #include <QDebug>
 #include <QFileInfo>
+#include <QUrl>
+#include <QNetworkRequest>
+#include <QNetworkReply>
 
 GeminiClient::GeminiClient(const QString& apiKey, const QString& modelName, QObject *parent)
     : QObject(parent), m_apiKey(apiKey), m_modelName(modelName) {
@@ -84,20 +87,21 @@ void GeminiClient::generateContent() {
     
     QJsonObject textPart;
     textPart["text"] = R"(
-    Analyze this image of a shipping spreadsheet.
-    Extract all data rows. For each row, extract the following 9 columns exactly in this order:
-    1. TBL NO (This is the BILL)
+    Analyze shipping spreadsheet image.
+    Extract all data rows. Map to exactly these 9 columns in order:
+    
+    1. TBL NO (If header is "Booking", map to this. This is the BILL)
     2. SHIPPER (The invoice ID)
-    3. CONTAINER NO.
+    3. CONTAINER NO. (If header is "Container no", map to this. If content length < 11 chars, replace with "Headtruck" or "TRUCK NO." value)
     4. TYPE
     5. SEAL NO.
-    6. TRUCK NO. (If the content here is just a truck size, replace it with the actual truck plate no. Look carefully).
+    6. TRUCK NO. (If header is "Headtruck", map to this. If content is truck size, replace with plate no.)
     7. DRIVER NAME
     8. CNEE
     9. DATE
 
-    Return ONLY a CSV format with one row per line. Do not include headers, labels, or any other text.
-    Use a comma as the separator. If a value contains a comma, omit it or replace with a space.
+    Return ONLY CSV format, one row per line. No headers. No labels.
+    Use comma separator. Omit or replace internal commas with space.
     )";
     
     QJsonObject filePart;
@@ -121,21 +125,47 @@ void GeminiClient::generateContent() {
 
 void GeminiClient::onGenerateFinished() {
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) return;
+
     if (reply->error() != QNetworkReply::NoError) {
-        QString responseBody = reply->readAll();
-        emit error(QString("Generation failed (%1): %2").arg(reply->errorString()).arg(responseBody));
+        QByteArray responseBody = reply->readAll();
+        qDebug() << "Gemini Error:" << reply->errorString() << responseBody;
+        emit error(QString("Generation failed (%1): %2").arg(reply->errorString()).arg(QString::fromUtf8(responseBody)));
         reply->deleteLater();
         return;
     }
 
-    QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-    QString text = doc.object()["candidates"].toArray()[0].toObject()["content"].toObject()["parts"].toArray()[0].toObject()["text"].toString();
+    QByteArray data = reply->readAll();
+    qDebug() << "Gemini Response:" << data;
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject obj = doc.object();
+    
+    QJsonArray candidates = obj["candidates"].toArray();
+    if (candidates.isEmpty()) {
+        qDebug() << "No candidates in response.";
+        emit error("No candidates returned from Gemini. Check quota or safety filters.");
+        reply->deleteLater();
+        return;
+    }
+
+    QJsonObject contentObj = candidates[0].toObject()["content"].toObject();
+    QJsonArray parts = contentObj["parts"].toArray();
+    if (parts.isEmpty()) {
+        qDebug() << "No parts in content.";
+        emit error("Empty content in Gemini response.");
+        reply->deleteLater();
+        return;
+    }
+
+    QString text = parts[0].toObject()["text"].toString();
+    qDebug() << "Extracted Text:" << text;
     
     reply->deleteLater();
     
-    // Cleanup the file from Gemini
-    QUrl deleteUrl("https://generativelanguage.googleapis.com/v1beta/" + m_fileName + "?key=" + m_apiKey);
-    m_networkManager->deleteResource(QNetworkRequest(deleteUrl));
+    if (!m_fileName.isEmpty()) {
+        QUrl deleteUrl("https://generativelanguage.googleapis.com/v1beta/" + m_fileName + "?key=" + m_apiKey);
+        m_networkManager->deleteResource(QNetworkRequest(deleteUrl));
+    }
 
     QStringList lines = text.trimmed().split('\n');
     QList<DataRow> extractedRows;
@@ -147,7 +177,6 @@ void GeminiClient::onGenerateFinished() {
         QStringList items = line.split(',');
         DataRow row = DataRow::fromCsvRow(items);
         
-        // Replace invoice_no with provided client ID if available
         if (i < m_clientIds.size()) {
             row.invoice_no = m_clientIds[i];
         }
