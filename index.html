@@ -267,6 +267,16 @@
         .commit-date-btn:active {
             transform: translateY(0);
         }
+        
+        /* Desktop styling for action cell */
+        @media (min-width: 769px) {
+            #resultsTable td.action-cell {
+                text-align: center !important;
+            }
+            #resultsTable td.action-cell > div {
+                justify-content: center !important;
+            }
+        }
     </style>
 </head>
 <body>

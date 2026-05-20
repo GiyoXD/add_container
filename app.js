@@ -412,11 +412,89 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTable(currentSheetData);
     }
 
+    async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
+        const spreadsheetId = spreadsheetIdInput.value;
+        const saJson = serviceAccountInput.value;
+        if (!spreadsheetId || !saJson) {
+            alert("Please provide Spreadsheet ID and Service Account JSON in the Settings panel.");
+            return;
+        }
+
+        try {
+            dateInput.disabled = true;
+            commitBtn.disabled = true;
+            commitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Saving';
+            log(`Marking invoice ${invoiceId} as cross-border for ${selectedDate}...`);
+
+            // 1. Get Access Token
+            const token = await getGoogleAccessToken(JSON.parse(saJson));
+
+            // 2. Put date value into Column G (index 6, which corresponds to Column G)
+            const range = `2026!G${originalRowIndex}`;
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
+            
+            // Format selected date from YYYY-MM-DD to DD/MM/YYYY
+            const parts = selectedDate.split('-');
+            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+            const body = {
+                values: [[formattedDate]]
+            };
+
+            const resp = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!resp.ok) {
+                const error = await resp.json();
+                throw new Error(`Google Sheets Update error: ${error.error.message}`);
+            }
+
+            log(`Successfully committed date ${formattedDate} for Invoice ${invoiceId}.`);
+
+            // 3. Update global currentSheetData cache and save to localStorage
+            if (currentSheetData && currentSheetData[originalRowIndex - 1]) {
+                const row = currentSheetData[originalRowIndex - 1];
+                if (!row.values) row.values = [];
+                
+                while (row.values.length <= 6) {
+                    row.values.push({});
+                }
+                
+                row.values[6] = {
+                    effectiveValue: { stringValue: formattedDate }
+                };
+
+                localStorage.setItem('cached_sheet_data', JSON.stringify(currentSheetData));
+                
+                // Rerender table
+                renderTable(currentSheetData);
+            }
+
+        } catch (err) {
+            log(`ERROR committing cross border date: ${err.message}`);
+            alert(`Failed to commit date: ${err.message}`);
+            dateInput.disabled = false;
+            commitBtn.disabled = false;
+            commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
+        }
+    }
+
     function renderTable(rowData) {
         tableHeader.innerHTML = '';
         tableBody.innerHTML = '';
 
         if (!rowData || rowData.length === 0) return;
+
+        // Tag each row with its original spreadsheet row index (1-based)
+        rowData.forEach((row, idx) => {
+            row.originalRowIndex = idx + 1;
+        });
 
         const searchTerm = searchInput.value.toLowerCase().trim();
 
@@ -559,6 +637,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     invoiceId = row.values[invCol.index].effectiveValue?.stringValue || '';
                 }
 
+                // Check if Column G (index 6) already has a value
+                const cellG = row.values && row.values.length > 6 ? row.values[6] : null;
+                let existingDateVal = '';
+                if (cellG && cellG.effectiveValue) {
+                    if (cellG.effectiveValue.stringValue) {
+                        existingDateVal = cellG.effectiveValue.stringValue;
+                    } else if (cellG.effectiveValue.numberValue !== undefined) {
+                        const serial = cellG.effectiveValue.numberValue;
+                        if (serial > 30000 && serial < 60000) {
+                            const date = new Date((serial - 25569) * 86400 * 1000);
+                            existingDateVal = date.toLocaleDateString();
+                        } else {
+                            existingDateVal = String(serial);
+                        }
+                    } else if (cellG.effectiveValue.boolValue !== undefined) {
+                        existingDateVal = String(cellG.effectiveValue.boolValue);
+                    }
+                }
+
                 // Create container div for styling
                 const container = document.createElement('div');
                 container.className = 'd-flex align-items-center justify-content-between w-100 py-1';
@@ -571,43 +668,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 label.textContent = 'CROSS BORDER';
                 container.appendChild(label);
 
-                // Controls wrapper
-                const controls = document.createElement('div');
-                controls.className = 'd-flex align-items-center gap-2 ms-auto';
+                if (existingDateVal && existingDateVal.trim() !== '') {
+                    // Badge text indicating container crossed the border
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success-subtle text-success border border-success-subtle py-1.5 px-3 ms-auto';
+                    badge.style.fontSize = '0.8rem';
+                    badge.style.fontWeight = '600';
+                    badge.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>${existingDateVal}`;
+                    
+                    container.appendChild(badge);
+                } else {
+                    // Controls wrapper for inputs
+                    const controls = document.createElement('div');
+                    controls.className = 'd-flex align-items-center gap-2 ms-auto';
 
-                const dateInput = document.createElement('input');
-                dateInput.type = 'date';
-                dateInput.className = 'form-control form-control-sm border-date-input';
-                dateInput.style.width = '145px';
-                dateInput.style.padding = '4px 8px';
-                dateInput.style.fontSize = '0.85rem';
-                
-                const today = new Date();
-                const year = today.getFullYear();
-                const month = String(today.getMonth() + 1).padStart(2, '0');
-                const day = String(today.getDate()).padStart(2, '0');
-                dateInput.value = `${year}-${month}-${day}`;
+                    const dateInput = document.createElement('input');
+                    dateInput.type = 'date';
+                    dateInput.className = 'form-control form-control-sm border-date-input';
+                    dateInput.style.width = '145px';
+                    dateInput.style.padding = '4px 8px';
+                    dateInput.style.fontSize = '0.85rem';
+                    
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    dateInput.value = `${year}-${month}-${day}`;
 
-                const commitBtn = document.createElement('button');
-                commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
-                commitBtn.style.fontSize = '0.8rem';
-                commitBtn.style.whiteSpace = 'nowrap';
-                commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
-                
-                commitBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const selectedDate = dateInput.value;
-                    if (!selectedDate) {
-                        alert("Please select a date first.");
-                        return;
-                    }
-                    alert(`Simulated: Committing date ${selectedDate} for Invoice ${invoiceId} to spreadsheet Column G.`);
-                    console.log(`Commit simulation: Invoice:`, invoiceId, `Date:`, selectedDate);
-                });
+                    const commitBtn = document.createElement('button');
+                    commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
+                    commitBtn.style.fontSize = '0.8rem';
+                    commitBtn.style.whiteSpace = 'nowrap';
+                    commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
+                    
+                    commitBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const selectedDate = dateInput.value;
+                        if (!selectedDate) {
+                            alert("Please select a date first.");
+                            return;
+                        }
+                        
+                        const confirmMsg = `Are you sure you want to mark Invoice "${invoiceId}" as crossed border on ${selectedDate}?`;
+                        if (!confirm(confirmMsg)) {
+                            return;
+                        }
+                        
+                        commitCrossBorderDate(invoiceId, row.originalRowIndex, selectedDate, dateInput, commitBtn, actionTd);
+                    });
 
-                controls.appendChild(dateInput);
-                controls.appendChild(commitBtn);
-                container.appendChild(controls);
+                    controls.appendChild(dateInput);
+                    controls.appendChild(commitBtn);
+                    container.appendChild(controls);
+                }
+
                 actionTd.appendChild(container);
                 tr.appendChild(actionTd);
             }
