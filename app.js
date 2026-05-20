@@ -464,6 +464,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!row.values) return;
             const tr = document.createElement('tr');
             
+            if (rowIndex > 0) {
+                let hasGreenRefNo = false;
+                const refNoCol = colMap.find(c => c.name === "REF NO");
+                if (refNoCol) {
+                    const cell = row.values[refNoCol.index];
+                    if (cell) {
+                        const bg = cell.effectiveFormat?.backgroundColor;
+                        if (bg) {
+                            const r = Math.round((bg.red || 0) * 255);
+                            const g = Math.round((bg.green || 0) * 255);
+                            const b = Math.round((bg.blue || 0) * 255);
+                            if (g > r && g > b && g > 100) {
+                                hasGreenRefNo = true;
+                            }
+                        }
+                    }
+                }
+                if (!hasGreenRefNo) {
+                    tr.classList.add('warning-row');
+                }
+            }
+            
             colMap.forEach(col => {
                 const cell = row.values[col.index];
                 if (!cell) return;
@@ -499,11 +521,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check if background is not white
                     if (r < 255 || g < 255 || b < 255) {
                         hasCustomBg = true;
+                        el.style.backgroundColor = `rgb(${r},${g},${b})`;
+                        // Basic contrast check
+                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                        if (brightness < 128) el.style.color = 'white';
                     }
-                    el.style.backgroundColor = `rgb(${r},${g},${b})`;
-                    // Basic contrast check
-                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                    if (brightness < 128) el.style.color = 'white';
                 }
 
                 if (rowIndex === 0) {

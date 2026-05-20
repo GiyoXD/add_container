@@ -121,6 +121,10 @@
         }
         .border-dashed { border-style: dashed !important; border-color: #adb5bd !important; }
         .drop-zone:hover { border-color: #4facfe !important; background-color: #f1f8ff !important; }
+        /* Warning row (active/non-exported shipments) */
+        tr.warning-row {
+            background-color: #fff9e6 !important;
+        }
         
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
@@ -177,6 +181,10 @@
             }
             #resultsTable td.empty-cell {
                 display: none !important;
+            }
+            #resultsTable tr.warning-row {
+                background-color: #fffcf4 !important;
+                border-left: 5px solid #ffb000 !important;
             }
             #resultsTable td:last-child {
                 border-bottom: 0;
