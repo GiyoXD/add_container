@@ -508,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get header indices
         const headers = rowData[0].values.map(v => (v.effectiveValue?.stringValue || '').toUpperCase());
         const targetCols = [
-            "CLIENT", "INV NO", "REF NO", "TYPE", "INV DAT", 
+            "CLIENT", "INV NO", "REF NO", "INV DAT", 
             "EXPRESS CO", "CONTAINER", "BILL", "PALLET: GROSS"
         ];
         
