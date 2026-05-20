@@ -412,6 +412,14 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTable(currentSheetData);
     }
 
+    function formatDateToDDMMYY(date) {
+        if (!date || isNaN(date.getTime())) return '';
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = String(date.getFullYear()).slice(-2);
+        return `${day}-${month}-${year}`;
+    }
+
     async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
@@ -433,9 +441,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const range = `2026!G${originalRowIndex}`;
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
             
-            // Format selected date from YYYY-MM-DD to DD/MM/YYYY
+            // Format selected date from YYYY-MM-DD to DD-MM-YY
             const parts = selectedDate.split('-');
-            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            const yearShort = parts[0].slice(-2);
+            const formattedDate = `${parts[2]}-${parts[1]}-${yearShort}`;
 
             const body = {
                 values: [[formattedDate]]
@@ -580,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Date conversion for INV DAT (Google Sheets serial date: days since 1899-12-30)
                         if (col.name === "INV DAT" && rowIndex > 0) {
                             const date = new Date((eff.numberValue - 25569) * 86400 * 1000);
-                            val = date.toLocaleDateString();
+                            val = formatDateToDDMMYY(date);
                         } else {
                             val = eff.numberValue;
                         }
@@ -647,7 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const serial = cellG.effectiveValue.numberValue;
                         if (serial > 30000 && serial < 60000) {
                             const date = new Date((serial - 25569) * 86400 * 1000);
-                            existingDateVal = date.toLocaleDateString();
+                            existingDateVal = formatDateToDDMMYY(date);
                         } else {
                             existingDateVal = String(serial);
                         }
