@@ -35,6 +35,8 @@ private slots:
     void toggleConfig();
     void toggleLog();
     void toggleAiInput();
+    void updateActionButtons();
+    void onCrossButtonClicked();
 
 private:
     QLineEdit *m_imgPathEdit;

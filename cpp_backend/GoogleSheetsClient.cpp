@@ -41,6 +41,18 @@ void GoogleSheetsClient::fetchSheetData(const QString& range) {
     }
 }
 
+void GoogleSheetsClient::updateCell(const QString& range, const QString& value) {
+    m_pendingUpdateRange = range;
+    m_pendingUpdateValue = value;
+    m_pendingAction = PendingAction::UpdateCell;
+    if (m_accessToken.isEmpty()) {
+        emit statusUpdate("Authenticating with Google...");
+        requestAccessToken();
+    } else {
+        executePendingAction();
+    }
+}
+
 void GoogleSheetsClient::requestAccessToken() {
     QString jwt = createJwt();
     if (jwt.isEmpty()) return;
@@ -215,6 +227,29 @@ void GoogleSheetsClient::executePendingAction() {
 
         QNetworkReply *fetchReply = m_networkManager->get(request);
         connect(fetchReply, &QNetworkReply::finished, this, &GoogleSheetsClient::onFetchFinished);
+    } else if (m_pendingAction == PendingAction::UpdateCell) {
+        emit statusUpdate(QString("Updating cell %1 to %2...").arg(m_pendingUpdateRange).arg(m_pendingUpdateValue));
+
+        QUrl url(QString("https://sheets.googleapis.com/v4/spreadsheets/%1/values/%2")
+                 .arg(m_spreadsheetId).arg(m_pendingUpdateRange));
+        
+        QUrlQuery query;
+        query.addQueryItem("valueInputOption", "USER_ENTERED");
+        url.setQuery(query);
+
+        QNetworkRequest request(url);
+        request.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QJsonObject body;
+        QJsonArray values;
+        QJsonArray rowVals;
+        rowVals.append(m_pendingUpdateValue);
+        values.append(rowVals);
+        body["values"] = values;
+
+        QNetworkReply *updateReply = m_networkManager->put(request, QJsonDocument(body).toJson());
+        connect(updateReply, &QNetworkReply::finished, this, &GoogleSheetsClient::onAppendFinished);
     }
     m_pendingAction = PendingAction::None;
 }

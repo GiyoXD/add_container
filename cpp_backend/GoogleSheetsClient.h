@@ -11,13 +11,14 @@
 class GoogleSheetsClient : public QObject {
     Q_OBJECT
 public:
-    enum class PendingAction { None, Append, Fetch };
+    enum class PendingAction { None, Append, Fetch, UpdateCell };
 
     explicit GoogleSheetsClient(const QString& serviceAccountData, const QString& spreadsheetId, QObject *parent = nullptr);
     void setSpreadsheetId(const QString& id) { m_spreadsheetId = id; }
     void setServiceAccountData(const QString& data) { m_serviceAccountData = data; m_accessToken.clear(); }
     void appendRows(const QList<DataRow>& rows);
     void fetchSheetData(const QString& range);
+    void updateCell(const QString& range, const QString& value);
 
 signals:
     void finished();
@@ -37,6 +38,8 @@ private:
     QNetworkAccessManager *m_networkManager;
     QList<DataRow> m_pendingRows;
     QString m_pendingFetchRange;
+    QString m_pendingUpdateRange;
+    QString m_pendingUpdateValue;
     PendingAction m_pendingAction = PendingAction::None;
 
     void requestAccessToken();

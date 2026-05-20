@@ -9,6 +9,8 @@
 #include <QSettings>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QDialog>
+#include <QDateEdit>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setupUi();
@@ -160,8 +162,8 @@ void MainWindow::setupUi() {
     vData->addLayout(hDataControls);
 
     m_tableView = new QTableView(this);
-    m_tableModel = new QStandardItemModel(0, 7, this);
-    m_tableModel->setHorizontalHeaderLabels({"Invoice No", "Container No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)"});
+    m_tableModel = new QStandardItemModel(0, 8, this);
+    m_tableModel->setHorizontalHeaderLabels({"Invoice No", "Container No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
     
     m_proxyModel = new QSortFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_tableModel);
@@ -170,6 +172,10 @@ void MainWindow::setupUi() {
     
     m_tableView->setModel(m_proxyModel);
     vData->addWidget(m_tableView);
+
+    // Re-draw buttons whenever table is filtered or sorted
+    connect(m_proxyModel, &QSortFilterProxyModel::layoutChanged, this, &MainWindow::updateActionButtons);
+    connect(m_proxyModel, &QSortFilterProxyModel::modelReset, this, &MainWindow::updateActionButtons);
     
     layout->addWidget(dataGroup, 1); // Added stretch factor 1 so it takes all available vertical space
 
@@ -258,6 +264,7 @@ void MainWindow::onGoogleFinished() {
     log("Process complete successfully.");
     m_processBtn->setEnabled(true);
     m_processBtn->setText("Extract & Sync");
+    fetchSheetData();
 }
 
 void MainWindow::onGoogleError(const QString& message) {
@@ -283,9 +290,11 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     // Cache the data
     m_dbManager->saveSheetCache(rows);
 
-    for (auto it = rows.rbegin(); it != rows.rend(); ++it) {
-        const QList<CellData>& row = *it;
+    int totalRows = rows.size();
+    for (int i = totalRows - 1; i >= 0; --i) {
+        const QList<CellData>& row = rows[i];
         if (row.isEmpty()) continue;
+        int originalRowIndex = i + 1;
         
         CellData c_invoice = row.size() > 1 ? row[1] : CellData{"", Qt::white};
         CellData c_container = row.size() > 2 ? row[2] : CellData{"", Qt::white};
@@ -300,6 +309,13 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
             c_truck.value = baseDate.addDays(static_cast<qint64>(serial)).toString("dd/MM/yyyy");
         }
 
+        CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
+        double serialG = c_crossBorder.value.toDouble(&ok);
+        if (ok && serialG > 30000 && serialG < 60000) {
+            QDate baseDate(1899, 12, 30);
+            c_crossBorder.value = baseDate.addDays(static_cast<qint64>(serialG)).toString("dd/MM/yyyy");
+        }
+
         CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
         CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
         CellData c_pallet2026 = row.size() > 11 ? row[11] : CellData{"", Qt::white};
@@ -311,21 +327,25 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
         if (c_invoice.value.isEmpty() && c_container.value.isEmpty() && c_type.value.isEmpty()) continue;
 
         QList<QStandardItem*> items;
-        auto addItem = [&](const CellData& cell) {
+        auto addItem = [&](const CellData& cell, bool isInvoice = false) {
             QStandardItem* item = new QStandardItem(cell.value);
             if (cell.bgColor != Qt::white) {
                 item->setBackground(cell.bgColor);
             }
+            if (isInvoice) {
+                item->setData(originalRowIndex, Qt::UserRole + 1);
+            }
             items.append(item);
         };
 
-        addItem(c_invoice);
+        addItem(c_invoice, true);
         addItem(c_container);
         addItem(c_type);
         addItem(c_truck);
         addItem(c_container2026);
         addItem(c_bill2026);
         addItem(c_pallet2026);
+        addItem(c_crossBorder);
         
         m_tableModel->appendRow(items);
     }
@@ -333,6 +353,9 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     m_fetchBtn->setEnabled(true);
     m_fetchBtn->setText("Update 2026 Data");
     log(QString("Fetched and displayed %1 rows.").arg(m_tableModel->rowCount()));
+
+    // Populate buttons for action cell
+    updateActionButtons();
 }
 
 void MainWindow::onFilterChanged(const QString& text) {
@@ -441,5 +464,87 @@ void MainWindow::loadConfig() {
         }
     } else {
         m_googleSecretEdit->setPlainText(m_googleSecretData);
+    }
+}
+
+void MainWindow::updateActionButtons() {
+    for (int row = 0; row < m_proxyModel->rowCount(); ++row) {
+        QModelIndex proxyIndex = m_proxyModel->index(row, 7);
+        QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+        
+        QString val = m_tableModel->data(m_tableModel->index(sourceIndex.row(), 7)).toString().trimmed();
+        if (val.isEmpty()) {
+            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 0);
+            QString invoiceId = m_tableModel->data(invSourceIndex).toString();
+            
+            QStandardItem* item = m_tableModel->itemFromIndex(invSourceIndex);
+            if (!item) continue;
+            
+            int originalRowIndex = item->data(Qt::UserRole + 1).toInt();
+            if (originalRowIndex <= 0) continue;
+            
+            QPushButton *btn = new QPushButton("Cross", m_tableView);
+            btn->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
+            btn->setCursor(Qt::PointingHandCursor);
+            btn->setProperty("invoiceId", invoiceId);
+            btn->setProperty("originalRowIndex", originalRowIndex);
+            
+            connect(btn, &QPushButton::clicked, this, &MainWindow::onCrossButtonClicked);
+            m_tableView->setIndexWidget(proxyIndex, btn);
+        } else {
+            m_tableView->setIndexWidget(proxyIndex, nullptr);
+        }
+    }
+}
+
+void MainWindow::onCrossButtonClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    QString invoiceId = btn->property("invoiceId").toString();
+    int originalRowIndex = btn->property("originalRowIndex").toInt();
+
+    // Create a modern modal date dialog
+    QDialog dialog(this);
+    dialog.setWindowTitle("Commit Cross Border Date");
+    dialog.setModal(true);
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+    QLabel *label = new QLabel(QString("Select Border Crossing Date for Invoice \"%1\":").arg(invoiceId), &dialog);
+    QDateEdit *dateEdit = new QDateEdit(QDate::currentDate(), &dialog);
+    dateEdit->setCalendarPopup(true);
+    dateEdit->setDisplayFormat("dd/MM/yyyy");
+    
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    QPushButton *okBtn = new QPushButton("Confirm", &dialog);
+    okBtn->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;");
+    QPushButton *cancelBtn = new QPushButton("Cancel", &dialog);
+    
+    btnLayout->addWidget(okBtn);
+    btnLayout->addWidget(cancelBtn);
+
+    layout->addWidget(label);
+    layout->addWidget(dateEdit);
+    layout->addLayout(btnLayout);
+
+    connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        QDate selectedDate = dateEdit->date();
+        QString dateStr = selectedDate.toString("dd/MM/yyyy");
+        
+        // Ask for confirmation
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, 
+            "Confirm", 
+            QString("Are you sure you want to mark Invoice \"%1\" as crossed border on %2?").arg(invoiceId).arg(dateStr),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply == QMessageBox::Yes) {
+            log(QString("Committing border crossing date %1 for Invoice %2 (Row %3)...").arg(dateStr).arg(invoiceId).arg(originalRowIndex));
+            m_sheetsClient->updateCell(QString("2026!G%1").arg(originalRowIndex), dateStr);
+        }
     }
 }
