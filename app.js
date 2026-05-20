@@ -474,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (rowIndex === 0) {
                     tableHeader.appendChild(el);
                 } else {
+                    el.setAttribute('data-label', col.name);
                     tr.appendChild(el);
                 }
             });
