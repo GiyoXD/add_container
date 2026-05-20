@@ -23,6 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableHeader = document.getElementById('tableHeader');
     const tableBody = document.getElementById('tableBody');
 
+    // Red Invoice Alert DOM Elements
+    const redInvoiceAlertSection = document.getElementById('redInvoiceAlertSection');
+    const redInvoiceCount = document.getElementById('redInvoiceCount');
+    const toggleRedInvoiceListBtn = document.getElementById('toggleRedInvoiceList');
+    const redInvoiceListContainer = document.getElementById('redInvoiceListContainer');
+    const redInvoiceBadges = document.getElementById('redInvoiceBadges');
+
     let currentSheetData = null; // Store fetched data for filtering
     let selectedFile = null;     // Store selected/dropped/pasted image
 
@@ -176,6 +183,18 @@ document.addEventListener('DOMContentLoaded', () => {
             dataEntryBody.classList.add('hidden');
             toggleDataEntry.innerHTML = '<i class="fa-solid fa-plus me-1"></i>Expand';
         }
+    }
+
+    // Toggle Red Invoice Alert List
+    if (toggleRedInvoiceListBtn && redInvoiceListContainer) {
+        toggleRedInvoiceListBtn.addEventListener('click', () => {
+            redInvoiceListContainer.classList.toggle('hidden');
+            if (redInvoiceListContainer.classList.contains('hidden')) {
+                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show Invoices';
+            } else {
+                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide Invoices';
+            }
+        });
     }
 
     searchInput.addEventListener('input', () => {
@@ -420,6 +439,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${day}/${month}/${year}`;
     }
 
+    function isRedColor(bg) {
+        if (!bg) return false;
+        const r = Math.round((bg.red || 0) * 255);
+        const g = Math.round((bg.green || 0) * 255);
+        const b = Math.round((bg.blue || 0) * 255);
+        // Red color check: red is dominant and above a reasonable threshold
+        // Uses offset difference to catch even soft/pastel light-reds while excluding whites/greys and yellows
+        return (r > g + 15 && r > b + 15);
+    }
+
     async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
@@ -520,6 +549,56 @@ document.addEventListener('DOMContentLoaded', () => {
         // Display rows in descending order (reverse), but keep header at top
         const headerRow = rowData[0];
         const dataRows = rowData.slice(1).reverse();
+
+        // Flagged Red REF NO cells (rows with red REF NO background indicating unpassed border shipments)
+        const invCol = colMap.find(c => c.name === "INV NO");
+        const refCol = colMap.find(c => c.name === "REF NO");
+        let redInvoices = [];
+        if (invCol && refCol) {
+            dataRows.forEach(row => {
+                if (row.values && row.values[refCol.index]) {
+                    const refCell = row.values[refCol.index];
+                    const bg = refCell.effectiveFormat?.backgroundColor;
+                    if (isRedColor(bg)) {
+                        const invCell = row.values[invCol.index];
+                        const invoiceVal = invCell?.effectiveValue?.stringValue || '';
+                        if (invoiceVal) {
+                            redInvoices.push(invoiceVal);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Display or hide red invoice alert section
+        if (redInvoices.length > 0 && redInvoiceAlertSection && redInvoiceCount && redInvoiceBadges) {
+            redInvoiceCount.textContent = redInvoices.length;
+            redInvoiceAlertSection.classList.remove('hidden');
+            
+            // Build badges
+            redInvoiceBadges.innerHTML = '';
+            // Remove duplicates to avoid redundant buttons for same invoice
+            const uniqueRedInvoices = [...new Set(redInvoices)];
+            uniqueRedInvoices.forEach(invNo => {
+                const badge = document.createElement('span');
+                badge.className = 'badge-clickable-red';
+                badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${invNo}`;
+                badge.addEventListener('click', () => {
+                    // Update search input
+                    searchInput.value = invNo;
+                    // Trigger input event to filter the table
+                    searchInput.dispatchEvent(new Event('input'));
+                    // Smooth scroll down to Results Table
+                    const targetTable = document.querySelector('.table-container');
+                    if (targetTable) {
+                        targetTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+                redInvoiceBadges.appendChild(badge);
+            });
+        } else if (redInvoiceAlertSection) {
+            redInvoiceAlertSection.classList.add('hidden');
+        }
         
         // Apply search filter if active
         let filteredDataRows = dataRows.filter(row => {
