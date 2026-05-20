@@ -441,9 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const range = `2026!G${originalRowIndex}`;
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
             
-            // Format selected date from YYYY-MM-DD to DD/MM/YYYY
-            const parts = selectedDate.split('-');
-            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            // selectedDate is already formatted as "DD/MM/YYYY" from Flatpickr!
+            const formattedDate = selectedDate;
 
             const body = {
                 values: [[formattedDate]]
@@ -691,17 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     controls.className = 'd-flex align-items-center gap-2 ms-auto';
 
                     const dateInput = document.createElement('input');
-                    dateInput.type = 'date';
+                    dateInput.type = 'text';
                     dateInput.className = 'form-control form-control-sm border-date-input';
-                    dateInput.style.width = '145px';
+                    dateInput.style.width = '125px';
                     dateInput.style.padding = '4px 8px';
                     dateInput.style.fontSize = '0.85rem';
-                    
-                    const today = new Date();
-                    const year = today.getFullYear();
-                    const month = String(today.getMonth() + 1).padStart(2, '0');
-                    const day = String(today.getDate()).padStart(2, '0');
-                    dateInput.value = `${year}-${month}-${day}`;
+                    dateInput.style.backgroundColor = '#ffffff';
 
                     const commitBtn = document.createElement('button');
                     commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
@@ -728,6 +722,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     controls.appendChild(dateInput);
                     controls.appendChild(commitBtn);
                     container.appendChild(controls);
+
+                    // Initialize flatpickr on the input for consistent DD/MM/YYYY rendering
+                    flatpickr(dateInput, {
+                        dateFormat: "d/m/Y",
+                        defaultDate: new Date(),
+                        allowInput: true
+                    });
                 }
 
                 actionTd.appendChild(container);
