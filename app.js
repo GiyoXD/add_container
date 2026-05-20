@@ -416,8 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!date || isNaN(date.getTime())) return '';
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = String(date.getFullYear()).slice(-2);
-        return `${day}-${month}-${year}`;
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
     }
 
     async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
@@ -441,10 +441,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const range = `2026!G${originalRowIndex}`;
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
             
-            // Format selected date from YYYY-MM-DD to DD-MM-YY
+            // Format selected date from YYYY-MM-DD to DD/MM/YYYY
             const parts = selectedDate.split('-');
-            const yearShort = parts[0].slice(-2);
-            const formattedDate = `${parts[2]}-${parts[1]}-${yearShort}`;
+            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
 
             const body = {
                 values: [[formattedDate]]
