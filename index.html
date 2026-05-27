@@ -305,6 +305,33 @@
         .badge-clickable-red:active {
             transform: translateY(0);
         }
+        
+        /* Flagged Green Invoice Badges */
+        .badge-clickable-green {
+            background-color: #f4faf6;
+            color: #28a745;
+            border: 1px solid #c3e6cb;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.05);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .badge-clickable-green:hover {
+            background-color: #28a745;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+            border-color: #28a745;
+        }
+        .badge-clickable-green:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -394,6 +421,30 @@
                 <div id="redInvoiceListContainer" class="mt-3 pt-3 border-top hidden">
                     <p class="text-muted small mb-2 fw-semibold"><i class="fa-solid fa-hand-pointer me-1"></i>Click an invoice below to locate it instantly in the table:</p>
                     <div id="redInvoiceBadges" class="d-flex flex-wrap gap-2">
+                        <!-- Dynamic badges inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Green Invoice Alert Panel -->
+        <div id="greenInvoiceAlertSection" class="card mb-4 hidden" style="border-left: 5px solid #28a745; background-color: #f8fff9; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.08);">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center bg-success text-white" style="width: 42px; height: 42px; min-width: 42px; box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15);">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold text-success" style="letter-spacing: 0.3px;">Crossing Today (Green Invoice Cells)</h6>
+                            <p class="mb-0 text-muted small">We found <span id="greenInvoiceCount" class="fw-bold text-success fs-6">0</span> invoice(s) crossing today (green).</p>
+                        </div>
+                    </div>
+                    <button id="toggleGreenInvoiceList" class="btn btn-sm btn-outline-success px-3 py-1.5" style="border-radius: 20px; font-size: 0.8rem; font-weight: 600;"><i class="fa-solid fa-list me-1"></i>Show Invoices</button>
+                </div>
+                <div id="greenInvoiceListContainer" class="mt-3 pt-3 border-top hidden">
+                    <p class="text-muted small mb-2 fw-semibold"><i class="fa-solid fa-hand-pointer me-1"></i>Click an invoice below to locate it instantly in the table:</p>
+                    <div id="greenInvoiceBadges" class="d-flex flex-wrap gap-2">
                         <!-- Dynamic badges inserted here -->
                     </div>
                 </div>

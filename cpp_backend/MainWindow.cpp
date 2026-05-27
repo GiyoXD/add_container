@@ -11,6 +11,7 @@
 #include <QRegularExpression>
 #include <QDialog>
 #include <QDateEdit>
+#include <QShortcut>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setupUi();
@@ -161,9 +162,136 @@ void MainWindow::setupUi() {
     hDataControls->addWidget(m_filterEdit);
     vData->addLayout(hDataControls);
 
+    // Ctrl+F shortcut to focus and select search bar content
+    QShortcut *searchShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this);
+    connect(searchShortcut, &QShortcut::activated, this, [this]() {
+        m_filterEdit->setFocus();
+        m_filterEdit->selectAll();
+    });
+
+    // Red Invoice Alert Panel (Hidden by default)
+    m_redInvoiceFrame = new QFrame(this);
+    m_redInvoiceFrame->setObjectName("redInvoiceFrame");
+    m_redInvoiceFrame->setStyleSheet(
+        "QFrame#redInvoiceFrame { "
+        "  border: 1px solid #f5c6cb; "
+        "  border-left: 5px solid #dc3545; "
+        "  border-radius: 4px; "
+        "  background-color: #f8d7da; "
+        "}"
+    );
+    m_redInvoiceFrame->setVisible(false);
+
+    QVBoxLayout *vRedMain = new QVBoxLayout(m_redInvoiceFrame);
+    vRedMain->setContentsMargins(10, 8, 10, 8);
+    vRedMain->setSpacing(4);
+
+    QHBoxLayout *hRedTop = new QHBoxLayout();
+    hRedTop->setContentsMargins(0, 0, 0, 0);
+
+    QLabel *warningIcon = new QLabel("⚠️", m_redInvoiceFrame);
+    warningIcon->setStyleSheet("font-size: 12pt;");
+
+    m_redInvoiceCountLabel = new QLabel("We found 0 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.", m_redInvoiceFrame);
+    m_redInvoiceCountLabel->setStyleSheet("color: #721c24; font-weight: bold; font-size: 9pt;");
+
+    m_toggleRedListBtn = new QPushButton("Show Invoices", m_redInvoiceFrame);
+    m_toggleRedListBtn->setFixedWidth(110);
+    m_toggleRedListBtn->setCursor(Qt::PointingHandCursor);
+    m_toggleRedListBtn->setStyleSheet(
+        "QPushButton { "
+        "  border: 1px solid #dc3545; "
+        "  border-radius: 10px; "
+        "  padding: 2px 6px; "
+        "  color: #dc3545; "
+        "  background-color: white; "
+        "  font-weight: bold; "
+        "  font-size: 8pt; "
+        "} "
+        "QPushButton:hover { "
+        "  background-color: #dc3545; "
+        "  color: white; "
+        "}"
+    );
+
+    hRedTop->addWidget(warningIcon);
+    hRedTop->addWidget(m_redInvoiceCountLabel, 1);
+    hRedTop->addWidget(m_toggleRedListBtn);
+    vRedMain->addLayout(hRedTop);
+
+    m_redBadgesWidget = new QWidget(m_redInvoiceFrame);
+    m_redBadgesWidget->setVisible(false);
+    m_redBadgesLayout = new QGridLayout(m_redBadgesWidget);
+    m_redBadgesLayout->setContentsMargins(0, 4, 0, 0);
+    m_redBadgesLayout->setHorizontalSpacing(6);
+    m_redBadgesLayout->setVerticalSpacing(6);
+    vRedMain->addWidget(m_redBadgesWidget);
+
+    vData->addWidget(m_redInvoiceFrame);
+
+    // Green Invoice Alert Panel (Hidden by default)
+    m_crossTodayFrame = new QFrame(this);
+    m_crossTodayFrame->setObjectName("crossTodayFrame");
+    m_crossTodayFrame->setStyleSheet(
+        "QFrame#crossTodayFrame { "
+        "  border: 1px solid #c3e6cb; "
+        "  border-left: 5px solid #28a745; "
+        "  border-radius: 4px; "
+        "  background-color: #d4edda; "
+        "}"
+    );
+    m_crossTodayFrame->setVisible(false);
+
+    QVBoxLayout *vGreenMain = new QVBoxLayout(m_crossTodayFrame);
+    vGreenMain->setContentsMargins(10, 8, 10, 8);
+    vGreenMain->setSpacing(4);
+
+    QHBoxLayout *hGreenTop = new QHBoxLayout();
+    hGreenTop->setContentsMargins(0, 0, 0, 0);
+
+    QLabel *greenWarningIcon = new QLabel("✅", m_crossTodayFrame);
+    greenWarningIcon->setStyleSheet("font-size: 12pt;");
+
+    m_crossTodayCountLabel = new QLabel("We found 0 invoice(s) crossing today (green).", m_crossTodayFrame);
+    m_crossTodayCountLabel->setStyleSheet("color: #155724; font-weight: bold; font-size: 9pt;");
+
+    m_toggleCrossTodayListBtn = new QPushButton("Show Invoices", m_crossTodayFrame);
+    m_toggleCrossTodayListBtn->setFixedWidth(110);
+    m_toggleCrossTodayListBtn->setCursor(Qt::PointingHandCursor);
+    m_toggleCrossTodayListBtn->setStyleSheet(
+        "QPushButton { "
+        "  border: 1px solid #28a745; "
+        "  border-radius: 10px; "
+        "  padding: 2px 6px; "
+        "  color: #28a745; "
+        "  background-color: white; "
+        "  font-weight: bold; "
+        "  font-size: 8pt; "
+        "} "
+        "QPushButton:hover { "
+        "  background-color: #28a745; "
+        "  color: white; "
+        "}"
+    );
+
+    hGreenTop->addWidget(greenWarningIcon);
+    hGreenTop->addWidget(m_crossTodayCountLabel, 1);
+    hGreenTop->addWidget(m_toggleCrossTodayListBtn);
+    vGreenMain->addLayout(hGreenTop);
+
+    m_crossTodayBadgesWidget = new QWidget(m_crossTodayFrame);
+    m_crossTodayBadgesWidget->setVisible(false);
+    m_crossTodayBadgesLayout = new QGridLayout(m_crossTodayBadgesWidget);
+    m_crossTodayBadgesLayout->setContentsMargins(0, 4, 0, 0);
+    m_crossTodayBadgesLayout->setHorizontalSpacing(6);
+    m_crossTodayBadgesLayout->setVerticalSpacing(6);
+    vGreenMain->addWidget(m_crossTodayBadgesWidget);
+
+    vData->addWidget(m_crossTodayFrame);
+
     m_tableView = new QTableView(this);
     m_tableModel = new QStandardItemModel(0, 8, this);
-    m_tableModel->setHorizontalHeaderLabels({"Invoice No", "Container No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
+    m_tableModel->setHorizontalHeaderLabels({"Client", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
     
     m_proxyModel = new QSortFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_tableModel);
@@ -190,8 +318,11 @@ void MainWindow::setupUi() {
 
     connect(m_toggleLogBtn, &QPushButton::clicked, this, &MainWindow::toggleLog);
     connect(m_toggleAiInputBtn, &QPushButton::clicked, this, &MainWindow::toggleAiInput);
+    connect(m_toggleRedListBtn, &QPushButton::clicked, this, &MainWindow::onToggleRedList);
+    connect(m_toggleCrossTodayListBtn, &QPushButton::clicked, this, &MainWindow::onToggleCrossTodayList);
 
     resize(900, 650);
+    setWindowTitle("Vision Logistics Data Entry");
 }
 
 void MainWindow::browseImage() {
@@ -284,6 +415,22 @@ void MainWindow::fetchSheetData() {
     m_sheetsClient->fetchSheetData("2026!A:L");
 }
 
+bool MainWindow::isRedColor(const QColor& color) {
+    if (!color.isValid()) return false;
+    int r = color.red();
+    int g = color.green();
+    int b = color.blue();
+    return (r > g + 15 && r > b + 15);
+}
+
+bool MainWindow::isGreenColor(const QColor& color) {
+    if (!color.isValid()) return false;
+    int r = color.red();
+    int g = color.green();
+    int b = color.blue();
+    return (g > r + 15 && g > b + 15);
+}
+
 void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     m_tableModel->removeRows(0, m_tableModel->rowCount());
 
@@ -353,6 +500,142 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
     m_fetchBtn->setEnabled(true);
     m_fetchBtn->setText("Update 2026 Data");
     log(QString("Fetched and displayed %1 rows.").arg(m_tableModel->rowCount()));
+
+    // Identify red invoices (where REF NO column has red background) and green invoices (where CROSS BORDER column has green background)
+    QStringList redInvoices;
+    QStringList crossTodayInvoices;
+    for (int i = 1; i < rows.size(); ++i) {
+        const QList<CellData>& row = rows[i];
+        if (row.isEmpty()) continue;
+        
+        CellData c_client = row.size() > 1 ? row[1] : CellData{"", Qt::white};
+        CellData c_invNo = row.size() > 2 ? row[2] : CellData{"", Qt::white};
+        CellData c_ref = row.size() > 3 ? row[3] : CellData{"", Qt::white};
+        CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
+        if (c_client.value.isEmpty() && c_invNo.value.isEmpty() && c_ref.value.isEmpty()) continue;
+
+        if (isRedColor(c_ref.bgColor)) {
+            QString invoiceVal = c_invNo.value.trimmed();
+            if (!invoiceVal.isEmpty()) {
+                redInvoices.append(invoiceVal);
+            }
+        }
+
+        if (isGreenColor(c_crossBorder.bgColor)) {
+            QString invoiceVal = c_invNo.value.trimmed();
+            if (!invoiceVal.isEmpty()) {
+                crossTodayInvoices.append(invoiceVal);
+            }
+        }
+    }
+
+    if (!redInvoices.isEmpty()) {
+        m_redInvoiceCountLabel->setText(QString("We found %1 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.").arg(redInvoices.size()));
+        m_redInvoiceFrame->setVisible(true);
+
+        // Clear existing badges
+        QLayoutItem *child;
+        while ((child = m_redBadgesLayout->takeAt(0)) != nullptr) {
+            if (child->widget()) {
+                child->widget()->deleteLater();
+            }
+            delete child;
+        }
+
+        // Deduplicate
+        QStringList uniqueRedInvoices;
+        for (const QString& inv : redInvoices) {
+            if (!uniqueRedInvoices.contains(inv)) {
+                uniqueRedInvoices.append(inv);
+            }
+        }
+
+        // Add buttons
+        int colCount = 8;
+        for (int idx = 0; idx < uniqueRedInvoices.size(); ++idx) {
+            const QString& invNo = uniqueRedInvoices[idx];
+            QPushButton *badge = new QPushButton(invNo, m_redInvoiceFrame);
+            badge->setCursor(Qt::PointingHandCursor);
+            badge->setProperty("invoiceNo", invNo);
+            badge->setStyleSheet(
+                "QPushButton { "
+                "  border: 1px solid #dc3545; "
+                "  border-radius: 10px; "
+                "  padding: 2px 8px; "
+                "  color: white; "
+                "  background-color: #dc3545; "
+                "  font-weight: bold; "
+                "  font-size: 8pt; "
+                "} "
+                "QPushButton:hover { "
+                "  background-color: #c82333; "
+                "  border-color: #bd2130; "
+                "}"
+            );
+            connect(badge, &QPushButton::clicked, this, &MainWindow::onRedBadgeClicked);
+            
+            int r = idx / colCount;
+            int c = idx % colCount;
+            m_redBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
+        }
+        m_redBadgesLayout->setColumnStretch(colCount, 1);
+    } else {
+        m_redInvoiceFrame->setVisible(false);
+    }
+
+    if (!crossTodayInvoices.isEmpty()) {
+        m_crossTodayCountLabel->setText(QString("We found %1 invoice(s) crossing today (green).").arg(crossTodayInvoices.size()));
+        m_crossTodayFrame->setVisible(true);
+
+        // Clear existing badges
+        QLayoutItem *child;
+        while ((child = m_crossTodayBadgesLayout->takeAt(0)) != nullptr) {
+            if (child->widget()) {
+                child->widget()->deleteLater();
+            }
+            delete child;
+        }
+
+        // Deduplicate
+        QStringList uniqueCrossTodayInvoices;
+        for (const QString& inv : crossTodayInvoices) {
+            if (!uniqueCrossTodayInvoices.contains(inv)) {
+                uniqueCrossTodayInvoices.append(inv);
+            }
+        }
+
+        // Add buttons
+        int colCount = 8;
+        for (int idx = 0; idx < uniqueCrossTodayInvoices.size(); ++idx) {
+            const QString& invNo = uniqueCrossTodayInvoices[idx];
+            QPushButton *badge = new QPushButton(invNo, m_crossTodayFrame);
+            badge->setCursor(Qt::PointingHandCursor);
+            badge->setProperty("invoiceNo", invNo);
+            badge->setStyleSheet(
+                "QPushButton { "
+                "  border: 1px solid #28a745; "
+                "  border-radius: 10px; "
+                "  padding: 2px 8px; "
+                "  color: white; "
+                "  background-color: #28a745; "
+                "  font-weight: bold; "
+                "  font-size: 8pt; "
+                "} "
+                "QPushButton:hover { "
+                "  background-color: #218838; "
+                "  border-color: #1e7e34; "
+                "}"
+            );
+            connect(badge, &QPushButton::clicked, this, &MainWindow::onCrossTodayBadgeClicked);
+            
+            int r = idx / colCount;
+            int c = idx % colCount;
+            m_crossTodayBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
+        }
+        m_crossTodayBadgesLayout->setColumnStretch(colCount, 1);
+    } else {
+        m_crossTodayFrame->setVisible(false);
+    }
 
     // Populate buttons for action cell
     updateActionButtons();
@@ -474,10 +757,11 @@ void MainWindow::updateActionButtons() {
         
         QString val = m_tableModel->data(m_tableModel->index(sourceIndex.row(), 7)).toString().trimmed();
         if (val.isEmpty()) {
-            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 0);
+            QModelIndex clientSourceIndex = m_tableModel->index(sourceIndex.row(), 0);
+            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 1);
             QString invoiceId = m_tableModel->data(invSourceIndex).toString();
             
-            QStandardItem* item = m_tableModel->itemFromIndex(invSourceIndex);
+            QStandardItem* item = m_tableModel->itemFromIndex(clientSourceIndex);
             if (!item) continue;
             
             int originalRowIndex = item->data(Qt::UserRole + 1).toInt();
@@ -546,5 +830,39 @@ void MainWindow::onCrossButtonClicked() {
             log(QString("Committing border crossing date %1 for Invoice %2 (Row %3)...").arg(dateStr).arg(invoiceId).arg(originalRowIndex));
             m_sheetsClient->updateCell(QString("2026!G%1").arg(originalRowIndex), dateStr);
         }
+    }
+}
+
+void MainWindow::onToggleRedList() {
+    bool visible = !m_redBadgesWidget->isVisible();
+    m_redBadgesWidget->setVisible(visible);
+    m_toggleRedListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
+}
+
+void MainWindow::onRedBadgeClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    QString invNo = btn->property("invoiceNo").toString();
+    if (m_filterEdit->text() == invNo) {
+        m_filterEdit->clear();
+    } else {
+        m_filterEdit->setText(invNo);
+    }
+}
+
+void MainWindow::onToggleCrossTodayList() {
+    bool visible = !m_crossTodayBadgesWidget->isVisible();
+    m_crossTodayBadgesWidget->setVisible(visible);
+    m_toggleCrossTodayListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
+}
+
+void MainWindow::onCrossTodayBadgeClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    QString invNo = btn->property("invoiceNo").toString();
+    if (m_filterEdit->text() == invNo) {
+        m_filterEdit->clear();
+    } else {
+        m_filterEdit->setText(invNo);
     }
 }

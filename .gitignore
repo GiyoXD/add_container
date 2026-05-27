@@ -31,3 +31,18 @@ cpp_backend/secret.json
 moc_*.cpp
 ui_*.h
 qrc_*.cpp
+
+# Node dependencies
+node_modules/
+
+# Web asset output directory
+www/
+
+# Android build outputs & local config files
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/
+android/local.properties
+.gradle/
+

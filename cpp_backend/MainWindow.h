@@ -10,6 +10,9 @@
 #include <QTableView>
 #include <QStandardItemModel>
 #include <QSortFilterProxyModel>
+#include <QFrame>
+#include <QScrollArea>
+#include <QGridLayout>
 #include "GeminiClient.h"
 #include "GoogleSheetsClient.h"
 #include "DatabaseManager.h"
@@ -37,8 +40,15 @@ private slots:
     void toggleAiInput();
     void updateActionButtons();
     void onCrossButtonClicked();
+    void onToggleRedList();
+    void onRedBadgeClicked();
+    void onToggleCrossTodayList();
+    void onCrossTodayBadgeClicked();
 
 private:
+    bool isRedColor(const QColor& color);
+    bool isGreenColor(const QColor& color);
+
     QLineEdit *m_imgPathEdit;
     QLineEdit *m_idsEdit;
     QPlainTextEdit *m_logEdit;
@@ -66,6 +76,20 @@ private:
     // AI Input UI
     QGroupBox *m_aiInputGroup;
     QPushButton *m_toggleAiInputBtn;
+
+    // Red Invoice UI
+    QFrame *m_redInvoiceFrame;
+    QLabel *m_redInvoiceCountLabel;
+    QPushButton *m_toggleRedListBtn;
+    QWidget *m_redBadgesWidget;
+    QGridLayout *m_redBadgesLayout;
+
+    // Green Invoice UI (Cross Today)
+    QFrame *m_crossTodayFrame;
+    QLabel *m_crossTodayCountLabel;
+    QPushButton *m_toggleCrossTodayListBtn;
+    QWidget *m_crossTodayBadgesWidget;
+    QGridLayout *m_crossTodayBadgesLayout;
 
     GeminiClient *m_geminiClient;
     GoogleSheetsClient *m_sheetsClient;

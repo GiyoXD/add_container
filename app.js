@@ -30,6 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const redInvoiceListContainer = document.getElementById('redInvoiceListContainer');
     const redInvoiceBadges = document.getElementById('redInvoiceBadges');
 
+    // Green Invoice Alert DOM Elements
+    const greenInvoiceAlertSection = document.getElementById('greenInvoiceAlertSection');
+    const greenInvoiceCount = document.getElementById('greenInvoiceCount');
+    const toggleGreenInvoiceListBtn = document.getElementById('toggleGreenInvoiceList');
+    const greenInvoiceListContainer = document.getElementById('greenInvoiceListContainer');
+    const greenInvoiceBadges = document.getElementById('greenInvoiceBadges');
+
     let currentSheetData = null; // Store fetched data for filtering
     let selectedFile = null;     // Store selected/dropped/pasted image
 
@@ -193,6 +200,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show Invoices';
             } else {
                 toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide Invoices';
+            }
+        });
+    }
+
+    // Toggle Green Invoice Alert List
+    if (toggleGreenInvoiceListBtn && greenInvoiceListContainer) {
+        toggleGreenInvoiceListBtn.addEventListener('click', () => {
+            greenInvoiceListContainer.classList.toggle('hidden');
+            if (greenInvoiceListContainer.classList.contains('hidden')) {
+                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show Invoices';
+            } else {
+                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide Invoices';
             }
         });
     }
@@ -449,6 +468,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return (r > g + 15 && r > b + 15);
     }
 
+    function isGreenColor(bg) {
+        if (!bg) return false;
+        const r = Math.round((bg.red || 0) * 255);
+        const g = Math.round((bg.green || 0) * 255);
+        const b = Math.round((bg.blue || 0) * 255);
+        // Green color check: green is dominant and above a reasonable threshold
+        return (g > r + 15 && g > b + 15);
+    }
+
     async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
@@ -554,16 +582,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const invCol = colMap.find(c => c.name === "INV NO");
         const refCol = colMap.find(c => c.name === "REF NO");
         let redInvoices = [];
-        if (invCol && refCol) {
+        let greenInvoices = [];
+        if (invCol) {
             dataRows.forEach(row => {
-                if (row.values && row.values[refCol.index]) {
-                    const refCell = row.values[refCol.index];
-                    const bg = refCell.effectiveFormat?.backgroundColor;
-                    if (isRedColor(bg)) {
-                        const invCell = row.values[invCol.index];
-                        const invoiceVal = invCell?.effectiveValue?.stringValue || '';
-                        if (invoiceVal) {
-                            redInvoices.push(invoiceVal);
+                if (row.values) {
+                    if (refCol && row.values[refCol.index]) {
+                        const refCell = row.values[refCol.index];
+                        const bg = refCell.effectiveFormat?.backgroundColor;
+                        if (isRedColor(bg)) {
+                            const invCell = row.values[invCol.index];
+                            const invoiceVal = invCell?.effectiveValue?.stringValue || '';
+                            if (invoiceVal) {
+                                redInvoices.push(invoiceVal);
+                            }
+                        }
+                    }
+                    if (row.values.length > 6) {
+                        const cbCell = row.values[6];
+                        const bg = cbCell.effectiveFormat?.backgroundColor;
+                        if (isGreenColor(bg)) {
+                            const invCell = row.values[invCol.index];
+                            const invoiceVal = invCell?.effectiveValue?.stringValue || '';
+                            if (invoiceVal) {
+                                greenInvoices.push(invoiceVal);
+                            }
                         }
                     }
                 }
@@ -598,6 +640,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else if (redInvoiceAlertSection) {
             redInvoiceAlertSection.classList.add('hidden');
+        }
+
+        // Display or hide green invoice alert section
+        if (greenInvoices.length > 0 && greenInvoiceAlertSection && greenInvoiceCount && greenInvoiceBadges) {
+            greenInvoiceCount.textContent = greenInvoices.length;
+            greenInvoiceAlertSection.classList.remove('hidden');
+            
+            // Build badges
+            greenInvoiceBadges.innerHTML = '';
+            // Remove duplicates to avoid redundant buttons for same invoice
+            const uniqueGreenInvoices = [...new Set(greenInvoices)];
+            uniqueGreenInvoices.forEach(invNo => {
+                const badge = document.createElement('span');
+                badge.className = 'badge-clickable-green';
+                badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${invNo}`;
+                badge.addEventListener('click', () => {
+                    // Update search input
+                    searchInput.value = invNo;
+                    // Trigger input event to filter the table
+                    searchInput.dispatchEvent(new Event('input'));
+                    // Smooth scroll down to Results Table
+                    const targetTable = document.querySelector('.table-container');
+                    if (targetTable) {
+                        targetTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+                greenInvoiceBadges.appendChild(badge);
+            });
+        } else if (greenInvoiceAlertSection) {
+            greenInvoiceAlertSection.classList.add('hidden');
         }
         
         // Apply search filter if active

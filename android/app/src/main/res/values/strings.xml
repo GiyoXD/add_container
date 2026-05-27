@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vision Logistics</string>
+    <string name="title_activity_main">Vision Logistics</string>
+    <string name="package_name">com.visionlogistics.app</string>
+    <string name="custom_url_scheme">com.visionlogistics.app</string>
+</resources>
