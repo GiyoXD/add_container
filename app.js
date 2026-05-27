@@ -216,7 +216,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const clearSearchInputBtn = document.getElementById('clearSearchInput');
+
+    if (clearSearchInputBtn) {
+        clearSearchInputBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearchInputBtn.classList.add('hidden');
+            if (currentSheetData) {
+                renderTable(currentSheetData);
+            }
+        });
+    }
+
     searchInput.addEventListener('input', () => {
+        if (clearSearchInputBtn) {
+            if (searchInput.value.trim()) {
+                clearSearchInputBtn.classList.remove('hidden');
+            } else {
+                clearSearchInputBtn.classList.add('hidden');
+            }
+        }
         if (currentSheetData) {
             renderTable(currentSheetData);
         }
@@ -843,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const dateInput = document.createElement('input');
                     dateInput.type = 'text';
                     dateInput.className = 'form-control form-control-sm border-date-input';
-                    dateInput.style.width = '125px';
+                    dateInput.style.width = '100px';
                     dateInput.style.padding = '4px 8px';
                     dateInput.style.fontSize = '0.85rem';
                     dateInput.style.backgroundColor = '#ffffff';
@@ -852,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
                     commitBtn.style.fontSize = '0.8rem';
                     commitBtn.style.whiteSpace = 'nowrap';
-                    commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
+                    commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-sm-1"></i><span class="d-none d-sm-inline">Cross</span>';
                     
                     commitBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
