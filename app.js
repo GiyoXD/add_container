@@ -835,15 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Create container div for styling
                 const container = document.createElement('div');
-                container.className = 'd-flex align-items-center justify-content-between w-100 py-1';
-
-                // Label for mobile view (hidden on desktop)
-                const label = document.createElement('span');
-                label.className = 'd-md-none fw-bold text-muted small text-uppercase text-nowrap flex-shrink-0 me-2';
-                label.style.letterSpacing = '0.5px';
-                label.style.fontSize = '0.75rem';
-                label.textContent = 'CROSS BORDER';
-                container.appendChild(label);
+                container.className = 'd-flex align-items-center justify-content-end w-100 py-1';
 
                 if (existingDateVal && existingDateVal.trim() !== '') {
                     // Badge text indicating container crossed the border
