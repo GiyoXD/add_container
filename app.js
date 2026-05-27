@@ -820,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Label for mobile view (hidden on desktop)
                 const label = document.createElement('span');
-                label.className = 'd-md-none fw-bold text-muted small text-uppercase';
+                label.className = 'd-md-none fw-bold text-muted small text-uppercase text-nowrap flex-shrink-0 me-2';
                 label.style.letterSpacing = '0.5px';
                 label.style.fontSize = '0.75rem';
                 label.textContent = 'CROSS BORDER';
