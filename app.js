@@ -197,9 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleRedInvoiceListBtn.addEventListener('click', () => {
             redInvoiceListContainer.classList.toggle('hidden');
             if (redInvoiceListContainer.classList.contains('hidden')) {
-                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show Invoices';
+                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show';
             } else {
-                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide Invoices';
+                toggleRedInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide';
             }
         });
     }
@@ -209,9 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleGreenInvoiceListBtn.addEventListener('click', () => {
             greenInvoiceListContainer.classList.toggle('hidden');
             if (greenInvoiceListContainer.classList.contains('hidden')) {
-                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show Invoices';
+                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-list me-1"></i>Show';
             } else {
-                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide Invoices';
+                toggleGreenInvoiceListBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-1"></i>Hide';
             }
         });
     }
