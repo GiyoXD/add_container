@@ -70,13 +70,35 @@ bool DatabaseManager::setupDatabase() {
 
 bool DatabaseManager::existsLocally(const QString& bill, const QString& container, const QString& invoice) {
     QSqlQuery query;
-    query.prepare("SELECT 1 FROM container_table WHERE bill=? AND container_no=? AND invoice_no=?");
-    query.addBindValue(bill);
-    query.addBindValue(container);
-    query.addBindValue(invoice);
+    if (container.isEmpty()) {
+        query.prepare(R"(
+            SELECT 1 FROM sheet_cache s1
+            JOIN sheet_cache s3 ON s1.row_idx = s3.row_idx
+            LEFT JOIN sheet_cache s2 ON s1.row_idx = s2.row_idx AND s2.col_idx = 8
+            WHERE s1.col_idx = 9 AND s1.value = ?
+              AND s3.col_idx = 2 AND s3.value = ?
+              AND (s2.value IS NULL OR s2.value = '')
+            LIMIT 1
+        )");
+        query.addBindValue(bill);
+        query.addBindValue(invoice);
+    } else {
+        query.prepare(R"(
+            SELECT 1 FROM sheet_cache s1
+            JOIN sheet_cache s2 ON s1.row_idx = s2.row_idx
+            JOIN sheet_cache s3 ON s1.row_idx = s3.row_idx
+            WHERE s1.col_idx = 9 AND s1.value = ?
+              AND s2.col_idx = 8 AND s2.value LIKE '%' || ? || '%'
+              AND s3.col_idx = 2 AND s3.value = ?
+            LIMIT 1
+        )");
+        query.addBindValue(bill);
+        query.addBindValue(container);
+        query.addBindValue(invoice);
+    }
 
     if (!query.exec()) {
-        qWarning() << "Error checking existence:" << query.lastError().text();
+        qWarning() << "Error checking existence in sheet_cache:" << query.lastError().text();
         return false;
     }
 

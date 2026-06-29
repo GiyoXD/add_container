@@ -105,21 +105,22 @@ def process_image_with_gemini(image_path, client_ids):
     uploaded_file = genai.upload_file(path=image_path)
     
     prompt = """
-    Analyze this image of a shipping spreadsheet.
-    Extract all data rows. For each row, extract the following 10 columns exactly in this order:
-    1. TBL NO (This is the BILL)
+    Analyze shipping spreadsheet image.
+    Extract all data rows. Map to exactly these 10 columns in order:
+    
+    1. TBL NO (If header is "Booking", map to this. This is the BILL)
     2. SHIPPER (The invoice ID)
-    3. CONTAINER NO.
+    3. CONTAINER NO. (If header is "Container no", map to this. If content length < 11 chars, replace with "Headtruck" or "TRUCK NO." value)
     4. TYPE
     5. SEAL NO.
-    6. TRUCK NO. (If the content here is just a truck size, replace it with the actual truck plate no. Look carefully).
+    6. TRUCK NO. (If header is "Headtruck", map to this. If content is truck size, replace with plate no.)
     7. DRIVER NAME
     8. CNEE
     9. DATE
     10. PALLET: GROSS (The pallet gross weight, often labeled "p: gross" or "pallet gross" or similar. Extract the raw weight value, e.g. "1234.56" or "1234")
 
-    Return ONLY a CSV format with one row per line. Do not include headers, labels, or any other text.
-    Use a comma as the separator. If a value contains a comma, omit it or replace with a space.
+    Return ONLY CSV format, one row per line. No headers. No labels.
+    Use comma separator. Omit or replace internal commas with space.
     """
     
     print("Asking Gemini to analyze the image...")
@@ -138,6 +139,14 @@ def process_image_with_gemini(image_path, client_ids):
         if not line.strip():
             continue
         data = [item.strip() for item in line.split(',')]
+        
+        # Auto-align shift if bill is missing:
+        # If container number (e.g. ABCD1234567 or ABCD-1234567) is at index 1 instead of 2,
+        # and the row has 9 columns, insert an empty bill column at index 0.
+        import re
+        if len(data) == 9 and re.match(r'^[a-zA-Z]{4}-?\d{7}$', data[1]):
+            data.insert(0, "")
+            
         while len(data) < 10:
             data.append("")
         data = data[:10]

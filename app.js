@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const geminiKeyInput = document.getElementById('geminiKey');
+    const geminiModelInput = document.getElementById('geminiModel');
     const spreadsheetIdInput = document.getElementById('spreadsheetId');
     const serviceAccountInput = document.getElementById('serviceAccountJson');
     const settingsContainer = document.getElementById('settingsContainer');
@@ -42,26 +43,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Constants
     const PROMPT = `
-    Analyze this image of a shipping spreadsheet.
-    Extract all data rows. For each row, extract the following 10 columns exactly in this order:
-    1. TBL NO (This is the BILL)
+    Analyze shipping spreadsheet image.
+    Extract all data rows. Map to exactly these 10 columns in order:
+    
+    1. TBL NO (If header is "Booking", map to this. This is the BILL)
     2. SHIPPER (The invoice ID)
-    3. CONTAINER NO.
+    3. CONTAINER NO. (If header is "Container no", map to this. If content length < 11 chars, replace with "Headtruck" or "TRUCK NO." value)
     4. TYPE
     5. SEAL NO.
-    6. TRUCK NO. (If the content here is just a truck size, replace it with the actual truck plate no. Look carefully).
+    6. TRUCK NO. (If header is "Headtruck", map to this. If content is truck size, replace with plate no.)
     7. DRIVER NAME
     8. CNEE
     9. DATE
     10. PALLET: GROSS (The pallet gross weight, often labeled "p: gross" or "pallet gross" or similar. Extract the raw weight value, e.g. "1234.56" or "1234")
 
-    Return ONLY a CSV format with one row per line. Do not include headers, labels, or any other text.
-    Use a comma as the separator. If a value contains a comma, omit it or replace with a space.
+    Return ONLY CSV format, one row per line. No headers. No labels.
+    Use comma separator. Omit or replace internal commas with space.
     `;
 
     // Initialize Settings from LocalStorage
     function loadSettings() {
         geminiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+        geminiModelInput.value = localStorage.getItem('gemini_model') || 'gemini-3.1-flash-lite-preview';
         spreadsheetIdInput.value = localStorage.getItem('spreadsheet_id') || '';
         serviceAccountInput.value = localStorage.getItem('service_account_json') || '';
 
@@ -243,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveSettingsBtn.addEventListener('click', () => {
         localStorage.setItem('gemini_api_key', geminiKeyInput.value);
+        localStorage.setItem('gemini_model', geminiModelInput.value);
         localStorage.setItem('spreadsheet_id', spreadsheetIdInput.value);
         localStorage.setItem('service_account_json', serviceAccountInput.value);
         log("Settings saved to browser cache.");
@@ -257,11 +261,12 @@ document.addEventListener('DOMContentLoaded', () => {
     processBtn.addEventListener('click', async () => {
         const invoiceIds = invoiceIdsInput.value.trim().split(/[,\n]+/).map(id => id.trim()).filter(id => id.length > 0);
         const geminiKey = geminiKeyInput.value;
+        const geminiModel = geminiModelInput.value.trim();
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
         const urlInput = imagePathInput.value.trim();
 
-        if ((!selectedFile && !urlInput) || !invoiceIds.length || !geminiKey || !spreadsheetId || !saJson) {
+        if ((!selectedFile && !urlInput) || !invoiceIds.length || !geminiKey || !geminiModel || !spreadsheetId || !saJson) {
             alert("Please complete all fields (Image, IDs, and Settings).");
             return;
         }
@@ -287,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             log("Sending to Gemini...");
-            const extractedRows = await callGemini(geminiKey, base64Image, invoiceIds);
+            const extractedRows = await callGemini(geminiKey, base64Image, invoiceIds, geminiModel);
             log(`Extracted ${extractedRows.length} rows.`);
 
             log("Authenticating with Google Sheets...");
@@ -347,8 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function callGemini(apiKey, base64Image, clientIds) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
+    async function callGemini(apiKey, base64Image, clientIds, modelName) {
+        const model = modelName || 'gemini-3.1-flash-lite-preview';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const body = {
             contents: [{
                 parts: [
@@ -375,6 +381,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const lines = text.trim().split('\n');
         const rows = lines.map((line, index) => {
             const cols = line.split(',').map(c => c.trim());
+            // Auto-align shift if bill is missing:
+            // If container number (e.g. ABCD1234567 or ABCD-1234567) is at index 1 instead of 2,
+            // and the row has 9 columns, insert an empty bill column at index 0.
+            if (cols.length === 9 && /^[A-Z]{4}-?\d{7}$/i.test(cols[1])) {
+                cols.unshift('');
+            }
             while (cols.length < 10) {
                 cols.push('');
             }
