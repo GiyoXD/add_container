@@ -290,8 +290,8 @@ void MainWindow::setupUi() {
     vData->addWidget(m_crossTodayFrame);
 
     m_tableView = new QTableView(this);
-    m_tableModel = new QStandardItemModel(0, 8, this);
-    m_tableModel->setHorizontalHeaderLabels({"Client", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
+    m_tableModel = new QStandardItemModel(0, 9, this);
+    m_tableModel->setHorizontalHeaderLabels({"Client", "IFL-CLIENT", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
     
     m_proxyModel = new QSortFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_tableModel);
@@ -412,7 +412,7 @@ void MainWindow::fetchSheetData() {
     m_fetchBtn->setEnabled(false);
     m_fetchBtn->setText("Fetching...");
     log("Requesting data from 2026 sheet...");
-    m_sheetsClient->fetchSheetData("2026!A:L");
+    m_sheetsClient->fetchSheetData("2026!A:Z");
 }
 
 bool MainWindow::isRedColor(const QColor& color) {
@@ -465,7 +465,8 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
 
         CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
         CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
-        CellData c_pallet2026 = row.size() > 11 ? row[11] : CellData{"", Qt::white};
+        CellData c_iflClient2026 = row.size() > 10 ? row[10] : CellData{"", Qt::white};
+        CellData c_pallet2026 = row.size() > 12 ? row[12] : CellData{"", Qt::white};
 
         // Skip header row if it is one
         if (c_invoice.value.toLower() == "invoice_no" || c_invoice.value.toLower() == "invoice") continue;
@@ -486,6 +487,7 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
         };
 
         addItem(c_invoice, true);
+        addItem(c_iflClient2026);
         addItem(c_container);
         addItem(c_type);
         addItem(c_truck);
@@ -752,13 +754,13 @@ void MainWindow::loadConfig() {
 
 void MainWindow::updateActionButtons() {
     for (int row = 0; row < m_proxyModel->rowCount(); ++row) {
-        QModelIndex proxyIndex = m_proxyModel->index(row, 7);
+        QModelIndex proxyIndex = m_proxyModel->index(row, 8);
         QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
         
-        QString val = m_tableModel->data(m_tableModel->index(sourceIndex.row(), 7)).toString().trimmed();
+        QString val = m_tableModel->data(m_tableModel->index(sourceIndex.row(), 8)).toString().trimmed();
         if (val.isEmpty()) {
             QModelIndex clientSourceIndex = m_tableModel->index(sourceIndex.row(), 0);
-            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 1);
+            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 2);
             QString invoiceId = m_tableModel->data(invSourceIndex).toString();
             
             QStandardItem* item = m_tableModel->itemFromIndex(clientSourceIndex);
