@@ -83,8 +83,33 @@
             font-size: 0.9rem;
             box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
         }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         
+        /* Tab Navigation Styling */
+        .nav-pills .nav-link {
+            color: #495057;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 9px 22px;
+            border: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+        }
+        .nav-pills .nav-link:hover {
+            background-color: #e9ecef;
+            color: #212529;
+            transform: translateY(-1px);
+        }
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white !important;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(0, 242, 254, 0.35);
+        }
+
         /* Table Styling */
         .table-container { padding: 25px; }
         #resultsTable { margin-bottom: 0; }
@@ -128,6 +153,112 @@
             background-color: #fff9e6 !important;
         }
         
+        /* Cross Border Column styling */
+        .border-date-input {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .border-date-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+        .commit-date-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            box-shadow: 0 2px 4px rgba(29, 78, 216, 0.15) !important;
+            transition: all 0.2s ease !important;
+        }
+        .commit-date-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+            transform: translateY(-1px);
+        }
+        .commit-date-btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-delete-container {
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .btn-delete-container:hover {
+            background-color: #dc3545;
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        /* Desktop styling for action cell */
+        @media (min-width: 769px) {
+            #resultsTable td.action-cell {
+                text-align: center !important;
+            }
+            #resultsTable td.action-cell > div {
+                justify-content: center !important;
+            }
+        }
+        
+        /* Flagged Red Invoice Badges */
+        .badge-clickable-red {
+            background-color: #fff5f5;
+            color: #dc3545;
+            border: 1px solid #f5c2c7;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.05);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .badge-clickable-red:hover {
+            background-color: #dc3545;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+            border-color: #dc3545;
+        }
+        .badge-clickable-red:active {
+            transform: translateY(0);
+        }
+        
+        /* Flagged Green Invoice Badges */
+        .badge-clickable-green {
+            background-color: #f4faf6;
+            color: #28a745;
+            border: 1px solid #c3e6cb;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.05);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .badge-clickable-green:hover {
+            background-color: #28a745;
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+            border-color: #28a745;
+        }
+        .badge-clickable-green:active {
+            transform: translateY(0);
+        }
+
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
             body { padding: 10px 5px; }
@@ -220,117 +351,40 @@
             .drop-zone {
                 padding: 15px !important;
             }
-            /* Stack table controls on mobile */
+            
+            /* Stack Nav Pills & Controls on mobile */
+            .nav-pills {
+                display: flex;
+                width: 100%;
+            }
+            .nav-pills .nav-item {
+                flex: 1;
+            }
+            .nav-pills .nav-link {
+                width: 100%;
+                justify-content: center;
+                padding: 8px 10px;
+                font-size: 0.85rem;
+            }
             .table-controls {
                 flex-direction: column;
-                align-items: flex-start !important;
-                gap: 15px;
+                align-items: stretch !important;
+                gap: 12px;
             }
             .table-controls h4 {
-                border-end: none !important;
+                border-right: none !important;
+                border-inline-end: none !important;
                 border-bottom: 1px solid #dee2e6;
                 padding-bottom: 10px;
                 width: 100%;
             }
             .table-controls .d-flex {
                 width: 100%;
+                flex-wrap: wrap;
             }
             #searchInput {
                 width: 100% !important;
             }
-        }
-        
-        /* Cross Border Column styling */
-        .border-date-input {
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 4px 8px;
-            font-size: 0.85rem;
-            outline: none;
-            transition: all 0.2s ease;
-        }
-        .border-date-input:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-        }
-        .commit-date-btn {
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 6px !important;
-            font-weight: 600 !important;
-            box-shadow: 0 2px 4px rgba(29, 78, 216, 0.15) !important;
-            transition: all 0.2s ease !important;
-        }
-        .commit-date-btn:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
-            transform: translateY(-1px);
-        }
-        .commit-date-btn:active {
-            transform: translateY(0);
-        }
-        
-        /* Desktop styling for action cell */
-        @media (min-width: 769px) {
-            #resultsTable td.action-cell {
-                text-align: center !important;
-            }
-            #resultsTable td.action-cell > div {
-                justify-content: center !important;
-            }
-        
-        /* Flagged Red Invoice Badges */
-        .badge-clickable-red {
-            background-color: #fff5f5;
-            color: #dc3545;
-            border: 1px solid #f5c2c7;
-            border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.05);
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .badge-clickable-red:hover {
-            background-color: #dc3545;
-            color: #ffffff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
-            border-color: #dc3545;
-        }
-        .badge-clickable-red:active {
-            transform: translateY(0);
-        }
-        
-        /* Flagged Green Invoice Badges */
-        .badge-clickable-green {
-            background-color: #f4faf6;
-            color: #28a745;
-            border: 1px solid #c3e6cb;
-            border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.05);
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .badge-clickable-green:hover {
-            background-color: #28a745;
-            color: #ffffff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
-            border-color: #28a745;
-        }
-        .badge-clickable-green:active {
-            transform: translateY(0);
         }
     </style>
 </head>
@@ -405,6 +459,7 @@
                     </div>
                     <a href="#" id="toggleUrlInput" class="text-decoration-none small text-muted ms-auto"><i class="fa-solid fa-link me-1"></i>Use Web URL</a>
                 </div>
+            </div>
         </div>
         
         <!-- Red Invoice Alert Panel -->
@@ -449,13 +504,31 @@
 
         <!-- Results Table -->
         <div class="table-container">
+            <!-- Sheet Nav Tabs -->
+            <ul class="nav nav-pills mb-3" id="sheetTabs" role="tablist">
+                <li class="nav-item me-2" role="presentation">
+                    <button class="nav-link active" id="tabBtn0" data-tab-index="0" type="button" role="tab">
+                        <i class="fa-solid fa-ship me-2"></i>2026
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tabBtn1" data-tab-index="1" type="button" role="tab">
+                        <i class="fa-solid fa-truck me-2"></i>LOCAL EXPORT
+                    </button>
+                </li>
+            </ul>
+
             <div class="table-controls d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                <h4 class="mb-0 text-secondary border-end pe-2 me-2"><i class="fa-solid fa-table me-2"></i>2026 Live Preview</h4>
-                <div class="d-flex gap-2 align-items-center">
-                    <div class="position-relative" style="width: 250px;">
+                <h4 id="tableTitle" class="mb-0 text-secondary border-end pe-2 me-2 d-flex align-items-center">
+                    <i id="tableTitleIcon" class="fa-solid fa-ship me-2 text-primary"></i>
+                    <span id="tabTitleText">2026 Live Preview</span>
+                </h4>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <div class="position-relative" style="min-width: 200px; flex: 1 1 200px;">
                         <input type="text" id="searchInput" class="form-control form-control-sm pe-4" placeholder="Search table...">
                         <button id="clearSearchInput" class="btn btn-link btn-sm position-absolute end-0 top-50 translate-middle-y text-muted p-0 me-2 border-0 shadow-none hidden" style="line-height: 1;"><i class="fa-solid fa-circle-xmark"></i></button>
                     </div>
+                    <button id="editModeToggleBtn" class="btn btn-outline-warning btn-sm text-nowrap"><i class="fa-solid fa-pen-to-square me-1"></i>Edit Mode</button>
                     <button id="fetchBtn" class="btn btn-outline-info btn-sm text-nowrap"><i class="fa-solid fa-rotate me-1"></i>Refresh Data</button>
                 </div>
             </div>
@@ -477,7 +550,6 @@
             </div>
         </div>
     </div>
-
 
     <script src="app.js"></script>
 </body>

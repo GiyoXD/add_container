@@ -19,6 +19,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const processBtn = document.getElementById('processBtn');
     const fetchBtn = document.getElementById('fetchBtn');
     const searchInput = document.getElementById('searchInput');
+    const clearSearchInputBtn = document.getElementById('clearSearchInput');
+    const editModeToggleBtn = document.getElementById('editModeToggleBtn');
+    const tabTitleText = document.getElementById('tabTitleText');
+    const tableTitleIcon = document.getElementById('tableTitleIcon');
     const logContainer = document.getElementById('log');
     
     const tableHeader = document.getElementById('tableHeader');
@@ -38,7 +42,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const greenInvoiceListContainer = document.getElementById('greenInvoiceListContainer');
     const greenInvoiceBadges = document.getElementById('greenInvoiceBadges');
 
-    let currentSheetData = null; // Store fetched data for filtering
+    // Multi-Sheet Tabs Configuration
+    const TABS_CONFIG = [
+        {
+            id: '2026',
+            sheetName: '2026',
+            tabTitle: '2026',
+            previewTitle: '2026 Live Preview',
+            icon: 'fa-solid fa-ship',
+            cacheKey: 'cached_sheet_data_2026',
+            fetchRange: '2026!A1:Z500',
+            crossColLetter: 'G',
+            crossColIndex: 6, // 0-indexed Column G
+            refNoColIndex: 3, // 0-indexed Column D
+            actionColTitle: 'CROSS BORDER',
+            targetCols: ["CLIENT", "IFL-CLIENT", "INV NO", "REF NO", "INV DAT", "CONTAINER", "BILL"],
+            allowContainerDelete: true
+        },
+        {
+            id: 'local_supply',
+            sheetName: 'LOCAL  SUPPLY', // Exact sheet name with 2 spaces
+            tabTitle: 'LOCAL EXPORT',
+            previewTitle: 'LOCAL EXPORT Live Preview',
+            icon: 'fa-solid fa-truck',
+            cacheKey: 'cached_sheet_data_local_supply',
+            fetchRange: "'LOCAL  SUPPLY'!A1:Z500",
+            crossColLetter: 'J',
+            crossColIndex: 9, // 0-indexed Column J
+            refNoColIndex: 6, // 0-indexed Column G
+            actionColTitle: 'CROSS',
+            targetCols: ["N.O", "CLIENT", "INV NO", "REF NO", "INV DAT"],
+            allowContainerDelete: false
+        }
+    ];
+
+    let currentTabIndex = parseInt(localStorage.getItem('active_tab_index') || '0', 10);
+    if (isNaN(currentTabIndex) || currentTabIndex < 0 || currentTabIndex >= TABS_CONFIG.length) {
+        currentTabIndex = 0;
+    }
+
+    let isEditMode = false;
+    let currentSheetData = null; // Store fetched data for active tab
     let selectedFile = null;     // Store selected/dropped/pasted image
 
     // Constants
@@ -61,27 +105,132 @@ document.addEventListener('DOMContentLoaded', () => {
     Use comma separator. Omit or replace internal commas with space.
     `;
 
-    // Initialize Settings from LocalStorage
+    // Date formatting helper: DD-MMM-YYYY (e.g. 02-Jan-2026)
+    function formatDateDDMMMYYYY(date) {
+        if (!date || isNaN(date.getTime())) return '';
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[date.getUTCMonth()];
+        const year = date.getUTCFullYear();
+        return `${day}-${month}-${year}`;
+    }
+
+    function serialToFormattedDate(serial) {
+        if (typeof serial === 'number' && serial > 30000 && serial < 60000) {
+            const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const month = months[date.getUTCMonth()];
+            const year = date.getUTCFullYear();
+            return `${day}-${month}-${year}`;
+        }
+        return String(serial);
+    }
+
+    function isRedColor(bg) {
+        if (!bg) return false;
+        const r = Math.round((bg.red || 0) * 255);
+        const g = Math.round((bg.green || 0) * 255);
+        const b = Math.round((bg.blue || 0) * 255);
+        // Red color check: red is dominant and above threshold
+        return (r > g + 15 && r > b + 15);
+    }
+
+    function isGreenColor(bg) {
+        if (!bg) return false;
+        const r = Math.round((bg.red || 0) * 255);
+        const g = Math.round((bg.green || 0) * 255);
+        const b = Math.round((bg.blue || 0) * 255);
+        // Green color check: green is dominant and above threshold
+        return (g > r + 15 && g > b + 15);
+    }
+
+    // Switch Tab and load data
+    function switchTab(newIndex) {
+        currentTabIndex = newIndex;
+        localStorage.setItem('active_tab_index', String(currentTabIndex));
+
+        // Update nav-pills active class
+        const tabBtns = document.querySelectorAll('#sheetTabs .nav-link');
+        tabBtns.forEach((btn, idx) => {
+            if (idx === currentTabIndex) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        const activeConfig = TABS_CONFIG[currentTabIndex];
+        if (tabTitleText) {
+            tabTitleText.textContent = activeConfig.previewTitle;
+        }
+        if (tableTitleIcon) {
+            tableTitleIcon.className = `${activeConfig.icon} me-2 text-primary`;
+        }
+
+        // Load cached data for the newly selected tab
+        const cachedData = localStorage.getItem(activeConfig.cacheKey);
+        if (cachedData) {
+            try {
+                currentSheetData = JSON.parse(cachedData);
+                renderTable(currentSheetData);
+                log(`Loaded cached data for [${activeConfig.tabTitle}].`);
+            } catch (e) {
+                console.error("Failed to parse cached data for tab", e);
+                currentSheetData = null;
+                renderTable(null);
+            }
+        } else {
+            currentSheetData = null;
+            renderTable(null);
+            log(`No local cache for [${activeConfig.tabTitle}]. Click "Refresh Data" to load.`);
+        }
+    }
+
+    // Setup Tab Buttons
+    const tabBtns = document.querySelectorAll('#sheetTabs .nav-link');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabIdx = parseInt(btn.getAttribute('data-tab-index'), 10);
+            switchTab(tabIdx);
+        });
+    });
+
+    // Initialize Settings and Caches
     function loadSettings() {
         geminiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
         geminiModelInput.value = localStorage.getItem('gemini_model') || 'gemini-3.1-flash-lite-preview';
         spreadsheetIdInput.value = localStorage.getItem('spreadsheet_id') || '';
         serviceAccountInput.value = localStorage.getItem('service_account_json') || '';
 
-        // Load cached sheet data
-        const cachedData = localStorage.getItem('cached_sheet_data');
-        if (cachedData) {
-            try {
-                currentSheetData = JSON.parse(cachedData);
-                renderTable(currentSheetData);
-                log("Loaded cached sheet data.");
-            } catch (e) {
-                console.error("Failed to parse cached sheet data", e);
-            }
+        // Legacy cache migration
+        const legacyCached = localStorage.getItem('cached_sheet_data');
+        if (legacyCached && !localStorage.getItem('cached_sheet_data_2026')) {
+            localStorage.setItem('cached_sheet_data_2026', legacyCached);
         }
+
+        // Load active tab
+        switchTab(currentTabIndex);
     }
 
-    loadSettings();
+    // Edit Mode Toggle
+    if (editModeToggleBtn) {
+        editModeToggleBtn.addEventListener('click', () => {
+            isEditMode = !isEditMode;
+            if (isEditMode) {
+                editModeToggleBtn.classList.remove('btn-outline-warning');
+                editModeToggleBtn.classList.add('btn-warning');
+                editModeToggleBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Edit Mode: ON';
+            } else {
+                editModeToggleBtn.classList.remove('btn-warning');
+                editModeToggleBtn.classList.add('btn-outline-warning');
+                editModeToggleBtn.innerHTML = '<i class="fa-solid fa-pen-to-square me-1"></i>Edit Mode';
+            }
+            if (currentSheetData) {
+                renderTable(currentSheetData);
+            }
+        });
+    }
 
     // Event Listeners: Image Drag/Drop/Paste
     dropZone.addEventListener('click', () => imageInput.click());
@@ -113,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('paste', (e) => {
         if (!e.clipboardData) return;
 
-        // Try items first (better for apps like WeChat, Snipping Tool, etc.)
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
@@ -126,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Fallback to files
         if (e.clipboardData.files && e.clipboardData.files.length > 0) {
             handleImageFile(e.clipboardData.files[0]);
             e.preventDefault();
@@ -135,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     imagePathInput.addEventListener('input', () => {
         if (imagePathInput.value.trim()) {
-            selectedFile = null; // Prioritize path over file
+            selectedFile = null;
             imagePreview.classList.add('d-none');
             fileNameDisplay.textContent = "Using Web URL";
             fileNameDisplay.classList.remove('d-none');
@@ -148,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         selectedFile = file;
-        imagePathInput.value = ''; // clear input
+        imagePathInput.value = '';
         
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -188,7 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Auto-collapse on mobile devices on page load to keep screen space clean
         if (window.innerWidth < 768) {
             dataEntryBody.classList.add('hidden');
             toggleDataEntry.innerHTML = '<i class="fa-solid fa-plus me-1"></i>Expand';
@@ -218,8 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    const clearSearchInputBtn = document.getElementById('clearSearchInput');
 
     if (clearSearchInputBtn) {
         clearSearchInputBtn.addEventListener('click', () => {
@@ -298,11 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
             log("Authenticating with Google Sheets...");
             const accessToken = await getGoogleAccessToken(JSON.parse(saJson));
             
-            log("Pushing to Google Sheets...");
+            log("Pushing to Google Sheets CONTAINER sheet...");
             await appendToGoogleSheets(accessToken, spreadsheetId, extractedRows);
             log("Successfully pushed to Google Sheets.");
 
-            log("Fetching updated sheet data...");
+            log("Fetching updated sheet data for all tabs...");
             await fetchAndRenderSheet(accessToken, spreadsheetId);
 
         } catch (err) {
@@ -310,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
         } finally {
             processBtn.disabled = false;
-            processBtn.innerHTML = '<i class="fa-solid fa-bolt me-2"></i>Step 3: AI Extract & Sync to Sheets';
+            processBtn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i>Extract & Sync';
         }
     });
 
@@ -318,20 +462,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
         if (!spreadsheetId || !saJson) {
-            alert("Please provide Spreadsheet ID and Service Account JSON.");
+            alert("Please provide Spreadsheet ID and Service Account JSON in Settings.");
             return;
         }
 
         try {
             fetchBtn.disabled = true;
-            log("Authenticating...");
+            fetchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching...';
+            log("Authenticating with Google Sheets API...");
             const accessToken = await getGoogleAccessToken(JSON.parse(saJson));
-            log("Fetching...");
+            log("Fetching sheet data for all tabs...");
             await fetchAndRenderSheet(accessToken, spreadsheetId);
         } catch (err) {
             log(`ERROR: ${err.message}`);
         } finally {
             fetchBtn.disabled = false;
+            fetchBtn.innerHTML = '<i class="fa-solid fa-rotate me-1"></i>Refresh Data';
         }
     });
 
@@ -381,9 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const lines = text.trim().split('\n');
         const rows = lines.map((line, index) => {
             const cols = line.split(',').map(c => c.trim());
-            // Auto-align shift if bill is missing:
-            // If container number (e.g. ABCD1234567 or ABCD-1234567) is at index 1 instead of 2,
-            // and the row has 9 columns, insert an empty bill column at index 0.
             if (cols.length === 9 && /^[A-Z]{4}-?\d{7}$/i.test(cols[1])) {
                 cols.unshift('');
             }
@@ -391,7 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cols.push('');
             }
             const finalCols = cols.slice(0, 10);
-            // Overwrite invoice_no (column 2) with provided ID if available
             if (index < clientIds.length) {
                 finalCols[1] = clientIds[index];
             }
@@ -457,10 +599,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Fetch and cache sheet data for all tabs in a single batch request
     async function fetchAndRenderSheet(token, spreadsheetId) {
-        // Fetch values and background colors from 2026 sheet
-        const range = "2026!A1:Z500";
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?ranges=${range}&fields=sheets(data(rowData(values(effectiveValue,effectiveFormat(backgroundColor)))))`;
+        const range2026 = encodeURIComponent(TABS_CONFIG[0].fetchRange);
+        const rangeLocal = encodeURIComponent(TABS_CONFIG[1].fetchRange);
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?ranges=${range2026}&ranges=${rangeLocal}&fields=sheets(properties(title),data(rowData(values(effectiveValue,effectiveFormat(backgroundColor)))))`;
+
+        try {
+            const resp = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!resp.ok) {
+                // Fallback to fetch single active tab
+                return await fetchSingleTab(token, spreadsheetId, currentTabIndex);
+            }
+
+            const data = await resp.json();
+            if (data.sheets && data.sheets.length > 0) {
+                data.sheets.forEach(sheet => {
+                    const title = sheet.properties?.title;
+                    const rowData = sheet.data && sheet.data[0] ? (sheet.data[0].rowData || []) : [];
+                    const matchingTab = TABS_CONFIG.find(t => t.sheetName === title);
+                    if (matchingTab) {
+                        localStorage.setItem(matchingTab.cacheKey, JSON.stringify(rowData));
+                        if (matchingTab === TABS_CONFIG[currentTabIndex]) {
+                            currentSheetData = rowData;
+                        }
+                    }
+                });
+                renderTable(currentSheetData);
+                log(`Fetched & cached updated data for all sheets.`);
+            }
+        } catch (e) {
+            log(`Multi-sheet fetch fallback: ${e.message}`);
+            await fetchSingleTab(token, spreadsheetId, currentTabIndex);
+        }
+    }
+
+    async function fetchSingleTab(token, spreadsheetId, tabIdx) {
+        const tab = TABS_CONFIG[tabIdx];
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?ranges=${encodeURIComponent(tab.fetchRange)}&fields=sheets(data(rowData(values(effectiveValue,effectiveFormat(backgroundColor)))))`;
 
         const resp = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -468,48 +647,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!resp.ok) {
             const error = await resp.json();
-            throw new Error(`Google Sheets Fetch error: ${error.error.message}`);
+            throw new Error(`Google Sheets Fetch error: ${error.error?.message || error.error || resp.statusText}`);
         }
 
         const data = await resp.json();
         const sheet = data.sheets[0];
-        currentSheetData = sheet.data[0].rowData; // Cache globally for filtering
-        
-        // Save to LocalStorage for offline persistence
-        localStorage.setItem('cached_sheet_data', JSON.stringify(currentSheetData));
-
+        const rowData = sheet.data && sheet.data[0] ? (sheet.data[0].rowData || []) : [];
+        currentSheetData = rowData;
+        localStorage.setItem(tab.cacheKey, JSON.stringify(rowData));
         renderTable(currentSheetData);
+        log(`Fetched & cached data for [${tab.tabTitle}].`);
     }
 
-    function formatDateToDDMMYY(date) {
-        if (!date || isNaN(date.getTime())) return '';
-        const day = String(date.getDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = months[date.getMonth()];
-        const year = date.getFullYear();
-        return `${day}-${month}-${year}`;
-    }
-
-    function isRedColor(bg) {
-        if (!bg) return false;
-        const r = Math.round((bg.red || 0) * 255);
-        const g = Math.round((bg.green || 0) * 255);
-        const b = Math.round((bg.blue || 0) * 255);
-        // Red color check: red is dominant and above a reasonable threshold
-        // Uses offset difference to catch even soft/pastel light-reds while excluding whites/greys and yellows
-        return (r > g + 15 && r > b + 15);
-    }
-
-    function isGreenColor(bg) {
-        if (!bg) return false;
-        const r = Math.round((bg.red || 0) * 255);
-        const g = Math.round((bg.green || 0) * 255);
-        const b = Math.round((bg.blue || 0) * 255);
-        // Green color check: green is dominant and above a reasonable threshold
-        return (g > r + 15 && g > b + 15);
-    }
-
-    async function commitCrossBorderDate(invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
+    // Commit Cross Border Date to specific sheet column
+    async function commitCrossBorderDate(tab, invoiceId, originalRowIndex, selectedDate, dateInput, commitBtn, actionTd) {
         const spreadsheetId = spreadsheetIdInput.value;
         const saJson = serviceAccountInput.value;
         if (!spreadsheetId || !saJson) {
@@ -521,21 +672,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dateInput.disabled = true;
             commitBtn.disabled = true;
             commitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Saving';
-            log(`Marking invoice ${invoiceId} as cross-border for ${selectedDate}...`);
+            log(`Marking invoice ${invoiceId} as crossed on ${tab.tabTitle} for ${selectedDate}...`);
 
-            // 1. Get Access Token
             const token = await getGoogleAccessToken(JSON.parse(saJson));
 
-            // 2. Put date value into Column G (index 6, which corresponds to Column G)
-            const range = `2026!G${originalRowIndex}`;
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
-            
-            // selectedDate is already formatted as "DD/MM/YYYY" from Flatpickr!
-            const formattedDate = selectedDate;
-
-            const body = {
-                values: [[formattedDate]]
-            };
+            // Quote sheet name if needed
+            const sheetRef = tab.sheetName.includes(' ') ? `'${tab.sheetName}'` : tab.sheetName;
+            const range = `${sheetRef}!${tab.crossColLetter}${originalRowIndex}`;
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
             const resp = await fetch(url, {
                 method: 'PUT',
@@ -543,41 +687,151 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    values: [[selectedDate]]
+                })
             });
 
             if (!resp.ok) {
                 const error = await resp.json();
-                throw new Error(`Google Sheets Update error: ${error.error.message}`);
+                throw new Error(`Google Sheets Update error: ${error.error?.message || error.error || resp.statusText}`);
             }
 
-            log(`Successfully committed date ${formattedDate} for Invoice ${invoiceId}.`);
+            log(`Successfully committed date ${selectedDate} for Invoice ${invoiceId} on ${tab.tabTitle}.`);
 
-            // 3. Update global currentSheetData cache and save to localStorage
+            // Update in-memory data and localStorage cache
             if (currentSheetData && currentSheetData[originalRowIndex - 1]) {
                 const row = currentSheetData[originalRowIndex - 1];
                 if (!row.values) row.values = [];
                 
-                while (row.values.length <= 6) {
+                while (row.values.length <= tab.crossColIndex) {
                     row.values.push({});
                 }
                 
-                row.values[6] = {
-                    effectiveValue: { stringValue: formattedDate }
+                row.values[tab.crossColIndex] = {
+                    effectiveValue: { stringValue: selectedDate }
                 };
 
-                localStorage.setItem('cached_sheet_data', JSON.stringify(currentSheetData));
-                
-                // Rerender table
+                localStorage.setItem(tab.cacheKey, JSON.stringify(currentSheetData));
                 renderTable(currentSheetData);
             }
 
         } catch (err) {
-            log(`ERROR committing cross border date: ${err.message}`);
+            log(`ERROR committing cross date: ${err.message}`);
             alert(`Failed to commit date: ${err.message}`);
             dateInput.disabled = false;
             commitBtn.disabled = false;
-            commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-1"></i>Cross';
+            commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-sm-1"></i><span class="d-none d-sm-inline">Cross</span>';
+        }
+    }
+
+    // Container Deletion / Clear Feature from CONTAINER sheet
+    async function deleteContainerRow(invoiceId) {
+        const spreadsheetId = spreadsheetIdInput.value;
+        const saJson = serviceAccountInput.value;
+        if (!spreadsheetId || !saJson) {
+            alert("Please provide Spreadsheet ID and Service Account JSON in Settings.");
+            return;
+        }
+
+        if (!invoiceId || !invoiceId.trim()) {
+            alert("No Invoice ID found to delete container rows.");
+            return;
+        }
+
+        const confirmMsg = `Are you sure you want to delete all container records for Invoice "${invoiceId}" from the CONTAINER sheet?`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        try {
+            log(`Locating container records for Invoice "${invoiceId}"...`);
+            const token = await getGoogleAccessToken(JSON.parse(saJson));
+
+            // 1. Fetch spreadsheet metadata to find sheetId of CONTAINER sheet
+            const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`;
+            const metaResp = await fetch(metaUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!metaResp.ok) {
+                const error = await metaResp.json();
+                throw new Error(`Failed to fetch sheet metadata: ${error.error?.message || metaResp.statusText}`);
+            }
+            const metaData = await metaResp.json();
+            const containerSheet = (metaData.sheets || []).find(s => s.properties?.title === 'CONTAINER');
+            if (!containerSheet) {
+                throw new Error('Sheet "CONTAINER" was not found in this spreadsheet.');
+            }
+            const containerSheetId = containerSheet.properties.sheetId;
+
+            // 2. Fetch CONTAINER!B:B to find matching row indices
+            const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CONTAINER!B:B`;
+            const valuesResp = await fetch(valuesUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!valuesResp.ok) {
+                const error = await valuesResp.json();
+                throw new Error(`Failed to fetch CONTAINER sheet rows: ${error.error?.message || valuesResp.statusText}`);
+            }
+            const valuesData = await valuesResp.json();
+            const rows = valuesData.values || [];
+
+            const matchingIndices = [];
+            const normalizedTarget = invoiceId.trim().toUpperCase();
+
+            rows.forEach((row, idx) => {
+                const cellVal = (row[0] || '').toString().trim().toUpperCase();
+                if (cellVal === normalizedTarget) {
+                    matchingIndices.push(idx); // 0-based index
+                }
+            });
+
+            if (matchingIndices.length === 0) {
+                log(`No matching records found for Invoice "${invoiceId}" in CONTAINER sheet.`);
+                alert(`No container records found for Invoice "${invoiceId}" in CONTAINER sheet.`);
+                return;
+            }
+
+            // Sort descending to prevent row index shifting during execution
+            matchingIndices.sort((a, b) => b - a);
+
+            log(`Found ${matchingIndices.length} row(s) for Invoice "${invoiceId}". Deleting from CONTAINER sheet...`);
+
+            // 3. Build deleteDimension batchUpdate requests
+            const requests = matchingIndices.map(rowIdx => ({
+                deleteDimension: {
+                    range: {
+                        sheetId: containerSheetId,
+                        dimension: 'ROWS',
+                        startIndex: rowIdx,
+                        endIndex: rowIdx + 1
+                    }
+                }
+            }));
+
+            const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
+            const batchResp = await fetch(batchUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ requests })
+            });
+
+            if (!batchResp.ok) {
+                const error = await batchResp.json();
+                throw new Error(`Batch delete failed: ${error.error?.message || batchResp.statusText}`);
+            }
+
+            log(`Successfully deleted ${matchingIndices.length} container row(s) for Invoice "${invoiceId}" from CONTAINER sheet.`);
+            alert(`Successfully deleted ${matchingIndices.length} container row(s) for Invoice "${invoiceId}".`);
+
+            // Re-fetch sheets to update cache and view
+            await fetchAndRenderSheet(token, spreadsheetId);
+        } catch (err) {
+            log(`ERROR deleting container rows: ${err.message}`);
+            alert(`Error deleting container rows: ${err.message}`);
         }
     }
 
@@ -585,7 +839,21 @@ document.addEventListener('DOMContentLoaded', () => {
         tableHeader.innerHTML = '';
         tableBody.innerHTML = '';
 
-        if (!rowData || rowData.length === 0) return;
+        const tab = TABS_CONFIG[currentTabIndex];
+
+        if (!rowData || rowData.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'text-center text-muted py-4';
+            td.innerHTML = `<i class="fa-solid fa-inbox me-2"></i>No data loaded for ${tab.tabTitle}. Click "Refresh Data" to load.`;
+            tr.appendChild(td);
+            tableBody.appendChild(tr);
+
+            if (redInvoiceAlertSection) redInvoiceAlertSection.classList.add('hidden');
+            if (greenInvoiceAlertSection) greenInvoiceAlertSection.classList.add('hidden');
+            return;
+        }
 
         // Tag each row with its original spreadsheet row index (1-based)
         rowData.forEach((row, idx) => {
@@ -594,75 +862,109 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const searchTerm = searchInput.value.toLowerCase().trim();
 
-        // Get header indices
-        const headers = rowData[0].values.map(v => (v.effectiveValue?.stringValue || '').toUpperCase());
-        const targetCols = [
-            "CLIENT", "IFL-CLIENT", "INV NO", "REF NO", "INV DAT", 
-            "EXPRESS CO", "CONTAINER", "BILL", "PALLET: GROSS"
-        ];
-        
-        const colMap = targetCols.map(tc => ({
-            name: tc,
-            index: headers.findIndex(h => h.includes(tc))
-        })).filter(c => c.index !== -1);
+        // Get headers from first row
+        const headers = rowData[0].values ? rowData[0].values.map(v => (v.effectiveValue?.stringValue || '').toUpperCase().trim()) : [];
+        const targetCols = tab.targetCols;
+        const colMap = [];
+
+        targetCols.forEach(tc => {
+            let colIndex = -1;
+            if (headers && headers.length > 0) {
+                if (tc === "N.O") {
+                    colIndex = headers.findIndex(h => h === "N.O" || h === "NO" || h === "NO." || h.includes("N.O") || h.includes("NO."));
+                } else if (tc === "CLIENT") {
+                    colIndex = headers.findIndex(h => h === "CLIENT" || h === "CLIENT NAME" || h === "CUSTOMER");
+                    if (colIndex === -1) {
+                        colIndex = headers.findIndex(h => h.includes("CLIENT") && !h.includes("IFL"));
+                    }
+                } else if (tc === "IFL-CLIENT") {
+                    colIndex = headers.findIndex(h => h.includes("IFL-CLIENT") || h.includes("IFL CLIENT") || h.includes("IFL"));
+                } else if (tc === "INV DAT") {
+                    colIndex = headers.findIndex(h => h.includes("INV DAT") || h.includes("INV DATE") || h.includes("DATE"));
+                } else if (tc === "INV NO") {
+                    colIndex = headers.findIndex(h => h.includes("INV NO") || h.includes("INVOICE") || h.includes("INV"));
+                } else if (tc === "REF NO") {
+                    colIndex = headers.findIndex(h => h.includes("REF NO") || h.includes("REF"));
+                } else {
+                    colIndex = headers.findIndex(h => h.includes(tc));
+                }
+            }
+
+            // Fallback indices if headers did not match
+            if (colIndex === -1) {
+                if (tab.sheetName === 'LOCAL  SUPPLY') {
+                    if (tc === "N.O") colIndex = 0;
+                    else if (tc === "CLIENT") colIndex = 1;
+                    else if (tc === "INV NO") colIndex = 5;
+                    else if (tc === "REF NO") colIndex = 6;
+                    else if (tc === "INV DAT") colIndex = 8;
+                } else {
+                    if (tc === "CLIENT") colIndex = 0;
+                    else if (tc === "IFL-CLIENT") colIndex = 1;
+                    else if (tc === "INV NO") colIndex = 2;
+                    else if (tc === "REF NO") colIndex = 3;
+                    else if (tc === "INV DAT") colIndex = 4;
+                    else if (tc === "CONTAINER") colIndex = 7;
+                    else if (tc === "BILL") colIndex = 8;
+                }
+            }
+
+            if (colIndex !== -1) {
+                colMap.push({ name: tc, index: colIndex });
+            }
+        });
 
         // Display rows in descending order (reverse), but keep header at top
-        const headerRow = rowData[0];
         const dataRows = rowData.slice(1).reverse();
 
-        // Flagged Red REF NO cells (rows with red REF NO background indicating unpassed border shipments)
-        const invCol = colMap.find(c => c.name === "INV NO");
-        const refCol = colMap.find(c => c.name === "REF NO");
+        // Flagged Red & Green Invoices
+        const invCol = colMap.find(c => c.name === "INV NO") || { index: tab.sheetName === 'LOCAL  SUPPLY' ? 5 : 2 };
+        const refNoColIdx = tab.refNoColIndex;
+        const crossColIdx = tab.crossColIndex;
         let redInvoices = [];
         let greenInvoices = [];
-        if (invCol) {
-            dataRows.forEach(row => {
-                if (row.values) {
-                    if (refCol && row.values[refCol.index]) {
-                        const refCell = row.values[refCol.index];
-                        const bg = refCell.effectiveFormat?.backgroundColor;
-                        if (isRedColor(bg)) {
-                            const invCell = row.values[invCol.index];
-                            const invoiceVal = invCell?.effectiveValue?.stringValue || '';
-                            if (invoiceVal) {
-                                redInvoices.push(invoiceVal);
-                            }
-                        }
-                    }
-                    if (row.values.length > 6) {
-                        const cbCell = row.values[6];
-                        const bg = cbCell.effectiveFormat?.backgroundColor;
-                        if (isGreenColor(bg)) {
-                            const invCell = row.values[invCol.index];
-                            const invoiceVal = invCell?.effectiveValue?.stringValue || '';
-                            if (invoiceVal) {
-                                greenInvoices.push(invoiceVal);
-                            }
-                        }
+
+        dataRows.forEach(row => {
+            if (row.values) {
+                let invoiceVal = '';
+                if (row.values.length > invCol.index && row.values[invCol.index]) {
+                    const invCell = row.values[invCol.index];
+                    invoiceVal = invCell.effectiveValue?.stringValue || (invCell.effectiveValue?.numberValue !== undefined ? String(invCell.effectiveValue.numberValue) : '');
+                }
+
+                // Red alert on REF NO
+                if (row.values.length > refNoColIdx) {
+                    const refCell = row.values[refNoColIdx];
+                    const bg = refCell?.effectiveFormat?.backgroundColor;
+                    if (isRedColor(bg) && invoiceVal) {
+                        redInvoices.push(invoiceVal);
                     }
                 }
-            });
-        }
+
+                // Green alert on Cross column
+                if (row.values.length > crossColIdx) {
+                    const crossCell = row.values[crossColIdx];
+                    const bg = crossCell?.effectiveFormat?.backgroundColor;
+                    if (isGreenColor(bg) && invoiceVal) {
+                        greenInvoices.push(invoiceVal);
+                    }
+                }
+            }
+        });
 
         // Display or hide red invoice alert section
         if (redInvoices.length > 0 && redInvoiceAlertSection && redInvoiceCount && redInvoiceBadges) {
             redInvoiceCount.textContent = redInvoices.length;
             redInvoiceAlertSection.classList.remove('hidden');
-            
-            // Build badges
             redInvoiceBadges.innerHTML = '';
-            // Remove duplicates to avoid redundant buttons for same invoice
             const uniqueRedInvoices = [...new Set(redInvoices)];
             uniqueRedInvoices.forEach(invNo => {
                 const badge = document.createElement('span');
                 badge.className = 'badge-clickable-red';
                 badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${invNo}`;
                 badge.addEventListener('click', () => {
-                    // Update search input
                     searchInput.value = invNo;
-                    // Trigger input event to filter the table
                     searchInput.dispatchEvent(new Event('input'));
-                    // Smooth scroll down to Results Table
                     const targetTable = document.querySelector('.table-container');
                     if (targetTable) {
                         targetTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -678,21 +980,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (greenInvoices.length > 0 && greenInvoiceAlertSection && greenInvoiceCount && greenInvoiceBadges) {
             greenInvoiceCount.textContent = greenInvoices.length;
             greenInvoiceAlertSection.classList.remove('hidden');
-            
-            // Build badges
             greenInvoiceBadges.innerHTML = '';
-            // Remove duplicates to avoid redundant buttons for same invoice
             const uniqueGreenInvoices = [...new Set(greenInvoices)];
             uniqueGreenInvoices.forEach(invNo => {
                 const badge = document.createElement('span');
                 badge.className = 'badge-clickable-green';
                 badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${invNo}`;
                 badge.addEventListener('click', () => {
-                    // Update search input
                     searchInput.value = invNo;
-                    // Trigger input event to filter the table
                     searchInput.dispatchEvent(new Event('input'));
-                    // Smooth scroll down to Results Table
                     const targetTable = document.querySelector('.table-container');
                     if (targetTable) {
                         targetTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -703,10 +999,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (greenInvoiceAlertSection) {
             greenInvoiceAlertSection.classList.add('hidden');
         }
-        
+
+        // Render Table Headers
+        colMap.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col.name;
+            tableHeader.appendChild(th);
+        });
+
+        const actionTh = document.createElement('th');
+        actionTh.textContent = tab.actionColTitle;
+        actionTh.style.backgroundColor = '#34495e';
+        actionTh.style.color = 'white';
+        actionTh.style.textAlign = 'center';
+        actionTh.style.fontWeight = '600';
+        actionTh.style.padding = '15px 10px';
+        tableHeader.appendChild(actionTh);
+
         // Apply search filter if active
         let filteredDataRows = dataRows.filter(row => {
-            // Check if row is actually empty (no values or all values empty)
             if (!row.values || row.values.every(cell => {
                 const eff = cell.effectiveValue;
                 return !eff || (!eff.stringValue && eff.numberValue === undefined && eff.boolValue === undefined);
@@ -726,194 +1037,175 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        const sortedRows = [headerRow, ...filteredDataRows];
-
-        sortedRows.forEach((row, rowIndex) => {
+        // Render Table Data Rows
+        filteredDataRows.forEach(row => {
             if (!row.values) return;
             const tr = document.createElement('tr');
             
-            if (rowIndex > 0) {
-                let hasGreenRefNo = false;
-                const refNoCol = colMap.find(c => c.name === "REF NO");
-                if (refNoCol) {
-                    const cell = row.values[refNoCol.index];
-                    if (cell) {
-                        const bg = cell.effectiveFormat?.backgroundColor;
-                        if (bg) {
-                            const r = Math.round((bg.red || 0) * 255);
-                            const g = Math.round((bg.green || 0) * 255);
-                            const b = Math.round((bg.blue || 0) * 255);
-                            if (g > r && g > b && g > 100) {
-                                hasGreenRefNo = true;
-                            }
-                        }
+            // Highlight unpassed shipments (REF NO not green)
+            let hasGreenRefNo = false;
+            if (row.values.length > refNoColIdx) {
+                const cell = row.values[refNoColIdx];
+                if (cell) {
+                    const bg = cell.effectiveFormat?.backgroundColor;
+                    if (isGreenColor(bg)) {
+                        hasGreenRefNo = true;
                     }
-                }
-                if (!hasGreenRefNo) {
-                    tr.classList.add('warning-row');
                 }
             }
-            
+            if (!hasGreenRefNo) {
+                tr.classList.add('warning-row');
+            }
+
+            // Render columns in colMap
             colMap.forEach(col => {
-                const cell = row.values[col.index];
-                if (!cell) return;
-                
-                const tag = rowIndex === 0 ? 'th' : 'td';
-                const el = document.createElement(tag);
-                
-                // Get Value
+                const cell = row.values && row.values.length > col.index ? row.values[col.index] : null;
+                const el = document.createElement('td');
+                el.setAttribute('data-label', col.name);
+
                 let val = '';
-                const eff = cell.effectiveValue;
-                if (eff) {
-                    if (eff.stringValue) val = eff.stringValue;
-                    else if (eff.numberValue !== undefined) {
-                        // Date conversion for INV DAT (Google Sheets serial date: days since 1899-12-30)
-                        if (col.name === "INV DAT" && rowIndex > 0) {
-                            const date = new Date((eff.numberValue - 25569) * 86400 * 1000);
-                            val = formatDateToDDMMYY(date);
+                if (cell && cell.effectiveValue) {
+                    const eff = cell.effectiveValue;
+                    if (eff.stringValue) {
+                        val = eff.stringValue;
+                    } else if (eff.numberValue !== undefined) {
+                        const num = eff.numberValue;
+                        if (col.name === "INV DAT" || (num > 30000 && num < 60000)) {
+                            val = serialToFormattedDate(num);
                         } else {
-                            val = eff.numberValue;
+                            val = num;
                         }
+                    } else if (eff.boolValue !== undefined) {
+                        val = eff.boolValue;
                     }
-                    else if (eff.boolValue !== undefined) val = eff.boolValue;
                 }
                 el.textContent = val;
 
-                // Get Background Color
-                const bg = cell.effectiveFormat?.backgroundColor;
+                // Background Color
                 let hasCustomBg = false;
-                if (bg && rowIndex > 0) { // Only apply spreadsheet colors to data rows
+                if (cell && cell.effectiveFormat?.backgroundColor) {
+                    const bg = cell.effectiveFormat.backgroundColor;
                     const r = Math.round((bg.red || 0) * 255);
                     const g = Math.round((bg.green || 0) * 255);
                     const b = Math.round((bg.blue || 0) * 255);
-                    // Check if background is not white
                     if (r < 255 || g < 255 || b < 255) {
                         hasCustomBg = true;
                         el.style.backgroundColor = `rgb(${r},${g},${b})`;
-                        // Basic contrast check
                         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
                         if (brightness < 128) el.style.color = 'white';
                     }
                 }
 
-                if (rowIndex === 0) {
-                    tableHeader.appendChild(el);
-                } else {
-                    el.setAttribute('data-label', col.name);
-                    if (!val && !hasCustomBg) {
-                        el.classList.add('empty-cell');
-                    }
-                    tr.appendChild(el);
+                if (!val && !hasCustomBg) {
+                    el.classList.add('empty-cell');
                 }
+                tr.appendChild(el);
             });
 
-            if (rowIndex === 0) {
-                const actionTh = document.createElement('th');
-                actionTh.textContent = 'CROSS BORDER';
-                actionTh.style.backgroundColor = '#34495e';
-                actionTh.style.color = 'white';
-                actionTh.style.textAlign = 'center';
-                actionTh.style.fontWeight = '600';
-                actionTh.style.padding = '15px 10px';
-                tableHeader.appendChild(actionTh);
-            } else {
-                const actionTd = document.createElement('td');
-                actionTd.className = 'action-cell';
-                
-                // Find invoice number
-                let invoiceId = '';
-                const invCol = colMap.find(c => c.name === "INV NO");
-                if (invCol && row.values[invCol.index]) {
-                    invoiceId = row.values[invCol.index].effectiveValue?.stringValue || '';
-                }
+            // Action Cell
+            const actionTd = document.createElement('td');
+            actionTd.className = 'action-cell';
+            actionTd.setAttribute('data-label', tab.actionColTitle);
 
-                // Check if Column G (index 6) already has a value
-                const cellG = row.values && row.values.length > 6 ? row.values[6] : null;
-                let existingDateVal = '';
-                if (cellG && cellG.effectiveValue) {
-                    if (cellG.effectiveValue.stringValue) {
-                        existingDateVal = cellG.effectiveValue.stringValue;
-                    } else if (cellG.effectiveValue.numberValue !== undefined) {
-                        const serial = cellG.effectiveValue.numberValue;
-                        if (serial > 30000 && serial < 60000) {
-                            const date = new Date((serial - 25569) * 86400 * 1000);
-                            existingDateVal = formatDateToDDMMYY(date);
-                        } else {
-                            existingDateVal = String(serial);
-                        }
-                    } else if (cellG.effectiveValue.boolValue !== undefined) {
-                        existingDateVal = String(cellG.effectiveValue.boolValue);
-                    }
-                }
-
-                // Create container div for styling
-                const container = document.createElement('div');
-                container.className = 'd-flex align-items-center justify-content-end w-100 py-1';
-
-                if (existingDateVal && existingDateVal.trim() !== '') {
-                    // Badge text indicating container crossed the border
-                    const badge = document.createElement('span');
-                    badge.className = 'badge bg-success-subtle text-success border border-success-subtle py-1.5 px-3 ms-auto';
-                    badge.style.fontSize = '0.8rem';
-                    badge.style.fontWeight = '600';
-                    badge.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>${existingDateVal}`;
-                    
-                    container.appendChild(badge);
-                } else {
-                    // Controls wrapper for inputs
-                    const controls = document.createElement('div');
-                    controls.className = 'd-flex align-items-center gap-2 ms-auto';
-
-                    const dateInput = document.createElement('input');
-                    dateInput.type = 'text';
-                    dateInput.className = 'form-control form-control-sm border-date-input';
-                    dateInput.style.width = '100px';
-                    dateInput.style.padding = '4px 8px';
-                    dateInput.style.fontSize = '0.85rem';
-                    dateInput.style.backgroundColor = '#ffffff';
-
-                    const commitBtn = document.createElement('button');
-                    commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
-                    commitBtn.style.fontSize = '0.8rem';
-                    commitBtn.style.whiteSpace = 'nowrap';
-                    commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-sm-1"></i><span class="d-none d-sm-inline">Cross</span>';
-                    
-                    commitBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const selectedDate = dateInput.value;
-                        if (!selectedDate) {
-                            alert("Please select a date first.");
-                            return;
-                        }
-                        
-                        const confirmMsg = `Are you sure you want to mark Invoice "${invoiceId}" as crossed border on ${selectedDate}?`;
-                        if (!confirm(confirmMsg)) {
-                            return;
-                        }
-                        
-                        commitCrossBorderDate(invoiceId, row.originalRowIndex, selectedDate, dateInput, commitBtn, actionTd);
-                    });
-
-                    controls.appendChild(dateInput);
-                    controls.appendChild(commitBtn);
-                    container.appendChild(controls);
-
-                    // Initialize flatpickr on the input for consistent DD-MMM-YYYY rendering
-                    flatpickr(dateInput, {
-                        dateFormat: "d-M-Y",
-                        defaultDate: new Date(),
-                        allowInput: true
-                    });
-                }
-
-                actionTd.appendChild(container);
-                tr.appendChild(actionTd);
+            let invoiceId = '';
+            if (invCol && row.values && row.values.length > invCol.index && row.values[invCol.index]) {
+                const invCell = row.values[invCol.index];
+                invoiceId = invCell.effectiveValue?.stringValue || (invCell.effectiveValue?.numberValue !== undefined ? String(invCell.effectiveValue.numberValue) : '');
             }
 
-            if (rowIndex > 0) tableBody.appendChild(tr);
+            const cellCross = row.values && row.values.length > crossColIdx ? row.values[crossColIdx] : null;
+            let existingDateVal = '';
+            if (cellCross && cellCross.effectiveValue) {
+                if (cellCross.effectiveValue.stringValue) {
+                    existingDateVal = cellCross.effectiveValue.stringValue;
+                } else if (cellCross.effectiveValue.numberValue !== undefined) {
+                    existingDateVal = serialToFormattedDate(cellCross.effectiveValue.numberValue);
+                } else if (cellCross.effectiveValue.boolValue !== undefined) {
+                    existingDateVal = String(cellCross.effectiveValue.boolValue);
+                }
+            }
+
+            const container = document.createElement('div');
+            container.className = 'd-flex align-items-center justify-content-end w-100 py-1 flex-wrap gap-1';
+
+            // Clear / Delete Container button (Available in Edit Mode for container-bearing sheets)
+            if (isEditMode && tab.allowContainerDelete && invoiceId) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-xs btn-outline-danger py-1 px-2 me-1 btn-delete-container';
+                deleteBtn.title = `Delete container records for ${invoiceId}`;
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash me-1"></i>Clear';
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    deleteBtn.disabled = true;
+                    deleteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>';
+                    try {
+                        await deleteContainerRow(invoiceId);
+                    } finally {
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerHTML = '<i class="fa-solid fa-trash me-1"></i>Clear';
+                    }
+                });
+                container.appendChild(deleteBtn);
+            }
+
+            if (existingDateVal && existingDateVal.trim() !== '') {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-success-subtle text-success border border-success-subtle py-1.5 px-3';
+                badge.style.fontSize = '0.8rem';
+                badge.style.fontWeight = '600';
+                badge.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i>${existingDateVal}`;
+                container.appendChild(badge);
+            } else {
+                const controls = document.createElement('div');
+                controls.className = 'd-flex align-items-center gap-2';
+
+                const dateInput = document.createElement('input');
+                dateInput.type = 'text';
+                dateInput.className = 'form-control form-control-sm border-date-input';
+                dateInput.style.width = '110px';
+                dateInput.style.padding = '4px 8px';
+                dateInput.style.fontSize = '0.85rem';
+                dateInput.style.backgroundColor = '#ffffff';
+
+                const commitBtn = document.createElement('button');
+                commitBtn.className = 'btn btn-xs btn-primary commit-date-btn py-1.5 px-3';
+                commitBtn.style.fontSize = '0.8rem';
+                commitBtn.style.whiteSpace = 'nowrap';
+                commitBtn.innerHTML = '<i class="fa-solid fa-truck-fast me-sm-1"></i><span class="d-none d-sm-inline">Cross</span>';
+                
+                commitBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const selectedDate = dateInput.value;
+                    if (!selectedDate) {
+                        alert("Please select a date first.");
+                        return;
+                    }
+                    
+                    const confirmMsg = `Are you sure you want to mark Invoice "${invoiceId}" as crossed on ${selectedDate}?`;
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+                    
+                    commitCrossBorderDate(tab, invoiceId, row.originalRowIndex, selectedDate, dateInput, commitBtn, actionTd);
+                });
+
+                controls.appendChild(dateInput);
+                controls.appendChild(commitBtn);
+                container.appendChild(controls);
+
+                flatpickr(dateInput, {
+                    dateFormat: "d-M-Y",
+                    defaultDate: new Date(),
+                    allowInput: true
+                });
+            }
+
+            actionTd.appendChild(container);
+            tr.appendChild(actionTd);
+            tableBody.appendChild(tr);
         });
     }
 
-    // Call this at the very end after all functions are defined
+    // Call loadSettings on startup
     loadSettings();
 });
