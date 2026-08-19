@@ -14,10 +14,12 @@ public:
     bool setupDatabase();
     bool existsLocally(const QString& bill, const QString& container, const QString& invoice);
     bool saveBatch(const QList<DataRow>& rows);
+    bool deleteLocally(const QString& invoiceId);
 
     // Cache fetched sheet data
+    bool saveSheetCache(const QString& sheetName, const QList<QList<CellData>>& rows);
     bool saveSheetCache(const QList<QList<CellData>>& rows);
-    QList<QList<CellData>> loadSheetCache();
+    QList<QList<CellData>> loadSheetCache(const QString& sheetName = "2026");
 
 private:
     QSqlDatabase m_db;

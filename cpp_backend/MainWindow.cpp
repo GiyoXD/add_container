@@ -11,9 +11,11 @@
 #include <QRegularExpression>
 #include <QDialog>
 #include <QDateEdit>
+#include <QLocale>
+#include <QInputDialog>
 #include <QShortcut>
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_isEditMode(false) {
     setupUi();
     loadConfig();
 
@@ -28,11 +30,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         log("CRITICAL: Failed to setup local database.");
     }
 
-    // Load cached data if any
-    QList<QList<CellData>> cachedRows = m_dbManager->loadSheetCache();
-    if (!cachedRows.isEmpty()) {
-        log(QString("Loaded %1 rows from local cache.").arg(cachedRows.size()));
-        onDataFetched(cachedRows);
+    // Load cached data for both sheets if available
+    QList<QList<CellData>> cached2026 = m_dbManager->loadSheetCache("2026");
+    if (!cached2026.isEmpty()) {
+        log(QString("Loaded %1 rows from local cache for '2026'.").arg(cached2026.size()));
+        populateSheetData(0, cached2026);
+    }
+
+    QList<QList<CellData>> cachedLocal = m_dbManager->loadSheetCache("LOCAL  SUPPLY");
+    if (!cachedLocal.isEmpty()) {
+        log(QString("Loaded %1 rows from local cache for 'LOCAL  SUPPLY'.").arg(cachedLocal.size()));
+        populateSheetData(1, cachedLocal);
     }
 
     m_geminiClient = new GeminiClient(m_geminiApiKey, m_aiModelName, this);
@@ -45,7 +53,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_sheetsClient, &GoogleSheetsClient::statusUpdate, this, &MainWindow::log);
     connect(m_sheetsClient, &GoogleSheetsClient::finished, this, &MainWindow::onGoogleFinished);
     connect(m_sheetsClient, &GoogleSheetsClient::error, this, &MainWindow::onGoogleError);
-    connect(m_sheetsClient, &GoogleSheetsClient::dataFetched, this, &MainWindow::onDataFetched);
+    connect(m_sheetsClient, static_cast<void (GoogleSheetsClient::*)(const QString&, const QList<QList<CellData>>&)>(&GoogleSheetsClient::dataFetched),
+            this, &MainWindow::onDataFetched);
 }
 
 MainWindow::~MainWindow() {}
@@ -55,19 +64,23 @@ void MainWindow::setupUi() {
     setCentralWidget(central);
     QVBoxLayout *layout = new QVBoxLayout(central);
 
-    QLabel *title = new QLabel("Vision Logistics Data Entry (C++)", this);
+    QLabel *title = new QLabel("Vision Logistics Data Entry", this);
     title->setStyleSheet("font-size: 18pt; font-weight: bold;");
     title->setAlignment(Qt::AlignCenter);
     
     m_toggleAiInputBtn = new QPushButton("⚡ AI Data Entry", this);
     m_toggleAiInputBtn->setFixedWidth(120);
+    m_toggleEditModeBtn = new QPushButton("🔒 Edit Mode: OFF", this);
+    m_toggleEditModeBtn->setFixedWidth(130);
+    m_toggleEditModeBtn->setStyleSheet("background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font-weight: bold;");
     m_toggleConfigBtn = new QPushButton("⚙ Settings", this);
     m_toggleConfigBtn->setFixedWidth(100);
-    
+
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->addWidget(title);
     headerLayout->addWidget(m_toggleAiInputBtn);
     headerLayout->addWidget(m_toggleConfigBtn);
+    headerLayout->addWidget(m_toggleEditModeBtn);
     layout->addLayout(headerLayout);
 
     // Config Panel (Hidden by default)
@@ -150,55 +163,99 @@ void MainWindow::setupUi() {
     m_logGroup->setVisible(false);
     layout->addWidget(m_logGroup);
 
-    // Data Viewer
-    QGroupBox *dataGroup = new QGroupBox("2026 Sheet Data", this);
-    QVBoxLayout *vData = new QVBoxLayout(dataGroup);
-    
-    QHBoxLayout *hDataControls = new QHBoxLayout();
-    m_fetchBtn = new QPushButton("Update 2026 Data", this);
-    m_filterEdit = new QLineEdit(this);
-    m_filterEdit->setPlaceholderText("Search...");
-    hDataControls->addWidget(m_fetchBtn);
-    hDataControls->addWidget(m_filterEdit);
-    vData->addLayout(hDataControls);
+    // Tab Widget hosting "2026" and "LOCAL SUPPLY"
+    m_tabWidget = new QTabWidget(this);
+    m_tabs.resize(2);
 
-    // Ctrl+F shortcut to focus and select search bar content
+    // Tab 0: "2026"
+    m_tabs[0].sheetName = "2026";
+    m_tabs[0].tabTitle = "2026";
+    m_tabs[0].fetchRange = "2026!A:Z";
+    m_tabs[0].crossColumnIndex = 7;
+    m_tabs[0].crossColumnLetter = "G";
+    QStringList headers2026 = {"Client", "IFL-CLIENT", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Cross Border"};
+
+    // Tab 1: "LOCAL SUPPLY"
+    m_tabs[1].sheetName = "LOCAL  SUPPLY";
+    m_tabs[1].tabTitle = "LOCAL SUPPLY";
+    m_tabs[1].fetchRange = "'LOCAL  SUPPLY'!A:Z";
+    m_tabs[1].crossColumnIndex = 5;
+    m_tabs[1].crossColumnLetter = "J";
+    QStringList headersLocalSupply = {"N.O", "Client Name", "Invoice No", "Ref No", "Invoice Date", "Cross"};
+
+    m_tabWidget->addTab(createSheetTabWidget(0, headers2026, "Update 2026 Data"), "2026");
+    m_tabWidget->addTab(createSheetTabWidget(1, headersLocalSupply, "Update LOCAL SUPPLY Data"), "LOCAL SUPPLY");
+    m_tabWidget->setCurrentIndex(0); // Tab 0 active by default on startup
+
+    layout->addWidget(m_tabWidget, 1); // Added stretch factor 1 so it takes all available vertical space
+
+    // Ctrl+F shortcut to focus and select search bar content in currently selected tab
     QShortcut *searchShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this);
     connect(searchShortcut, &QShortcut::activated, this, [this]() {
-        m_filterEdit->setFocus();
-        m_filterEdit->selectAll();
+        int currentIdx = m_tabWidget->currentIndex();
+        if (currentIdx >= 0 && currentIdx < m_tabs.size() && m_tabs[currentIdx].filterEdit) {
+            m_tabs[currentIdx].filterEdit->setFocus();
+            m_tabs[currentIdx].filterEdit->selectAll();
+        }
     });
 
+    connect(browseBtn, &QPushButton::clicked, this, &MainWindow::browseImage);
+    connect(m_processBtn, &QPushButton::clicked, this, &MainWindow::startProcessing);
+
+    connect(m_toggleConfigBtn, &QPushButton::clicked, this, &MainWindow::toggleConfig);
+    connect(m_saveConfigBtn, &QPushButton::clicked, this, &MainWindow::saveConfig);
+
+    connect(m_toggleLogBtn, &QPushButton::clicked, this, &MainWindow::toggleLog);
+    connect(m_toggleAiInputBtn, &QPushButton::clicked, this, &MainWindow::toggleAiInput);
+    connect(m_toggleEditModeBtn, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
+
+    resize(950, 700);
+    setWindowTitle("Vision Logistics Data Entry");
+}
+
+QWidget* MainWindow::createSheetTabWidget(int tabIdx, const QStringList& headers, const QString& fetchBtnText) {
+    QWidget *container = new QWidget(this);
+    QVBoxLayout *vTab = new QVBoxLayout(container);
+
+    QHBoxLayout *hDataControls = new QHBoxLayout();
+    m_tabs[tabIdx].fetchBtn = new QPushButton(fetchBtnText, container);
+    m_tabs[tabIdx].filterEdit = new QLineEdit(container);
+    m_tabs[tabIdx].filterEdit->setPlaceholderText("Search...");
+    hDataControls->addWidget(m_tabs[tabIdx].fetchBtn);
+    hDataControls->addWidget(m_tabs[tabIdx].filterEdit);
+    vTab->addLayout(hDataControls);
+
     // Red Invoice Alert Panel (Hidden by default)
-    m_redInvoiceFrame = new QFrame(this);
-    m_redInvoiceFrame->setObjectName("redInvoiceFrame");
-    m_redInvoiceFrame->setStyleSheet(
-        "QFrame#redInvoiceFrame { "
+    m_tabs[tabIdx].redInvoiceFrame = new QFrame(container);
+    m_tabs[tabIdx].redInvoiceFrame->setObjectName(QString("redInvoiceFrame_%1").arg(tabIdx));
+    m_tabs[tabIdx].redInvoiceFrame->setStyleSheet(
+        QString("QFrame#redInvoiceFrame_%1 { "
         "  border: 1px solid #f5c6cb; "
         "  border-left: 5px solid #dc3545; "
         "  border-radius: 4px; "
         "  background-color: #f8d7da; "
-        "}"
+        "}").arg(tabIdx)
     );
-    m_redInvoiceFrame->setVisible(false);
+    m_tabs[tabIdx].redInvoiceFrame->setVisible(false);
 
-    QVBoxLayout *vRedMain = new QVBoxLayout(m_redInvoiceFrame);
+    QVBoxLayout *vRedMain = new QVBoxLayout(m_tabs[tabIdx].redInvoiceFrame);
     vRedMain->setContentsMargins(10, 8, 10, 8);
     vRedMain->setSpacing(4);
 
     QHBoxLayout *hRedTop = new QHBoxLayout();
     hRedTop->setContentsMargins(0, 0, 0, 0);
 
-    QLabel *warningIcon = new QLabel("⚠️", m_redInvoiceFrame);
+    QLabel *warningIcon = new QLabel("⚠️", m_tabs[tabIdx].redInvoiceFrame);
     warningIcon->setStyleSheet("font-size: 12pt;");
 
-    m_redInvoiceCountLabel = new QLabel("We found 0 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.", m_redInvoiceFrame);
-    m_redInvoiceCountLabel->setStyleSheet("color: #721c24; font-weight: bold; font-size: 9pt;");
+    m_tabs[tabIdx].redInvoiceCountLabel = new QLabel("We found 0 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.", m_tabs[tabIdx].redInvoiceFrame);
+    m_tabs[tabIdx].redInvoiceCountLabel->setStyleSheet("color: #721c24; font-weight: bold; font-size: 9pt;");
 
-    m_toggleRedListBtn = new QPushButton("Show Invoices", m_redInvoiceFrame);
-    m_toggleRedListBtn->setFixedWidth(110);
-    m_toggleRedListBtn->setCursor(Qt::PointingHandCursor);
-    m_toggleRedListBtn->setStyleSheet(
+    m_tabs[tabIdx].toggleRedListBtn = new QPushButton("Show Invoices", m_tabs[tabIdx].redInvoiceFrame);
+    m_tabs[tabIdx].toggleRedListBtn->setFixedWidth(110);
+    m_tabs[tabIdx].toggleRedListBtn->setCursor(Qt::PointingHandCursor);
+    m_tabs[tabIdx].toggleRedListBtn->setProperty("tabIdx", tabIdx);
+    m_tabs[tabIdx].toggleRedListBtn->setStyleSheet(
         "QPushButton { "
         "  border: 1px solid #dc3545; "
         "  border-radius: 10px; "
@@ -215,50 +272,51 @@ void MainWindow::setupUi() {
     );
 
     hRedTop->addWidget(warningIcon);
-    hRedTop->addWidget(m_redInvoiceCountLabel, 1);
-    hRedTop->addWidget(m_toggleRedListBtn);
+    hRedTop->addWidget(m_tabs[tabIdx].redInvoiceCountLabel, 1);
+    hRedTop->addWidget(m_tabs[tabIdx].toggleRedListBtn);
     vRedMain->addLayout(hRedTop);
 
-    m_redBadgesWidget = new QWidget(m_redInvoiceFrame);
-    m_redBadgesWidget->setVisible(false);
-    m_redBadgesLayout = new QGridLayout(m_redBadgesWidget);
-    m_redBadgesLayout->setContentsMargins(0, 4, 0, 0);
-    m_redBadgesLayout->setHorizontalSpacing(6);
-    m_redBadgesLayout->setVerticalSpacing(6);
-    vRedMain->addWidget(m_redBadgesWidget);
+    m_tabs[tabIdx].redBadgesWidget = new QWidget(m_tabs[tabIdx].redInvoiceFrame);
+    m_tabs[tabIdx].redBadgesWidget->setVisible(false);
+    m_tabs[tabIdx].redBadgesLayout = new QGridLayout(m_tabs[tabIdx].redBadgesWidget);
+    m_tabs[tabIdx].redBadgesLayout->setContentsMargins(0, 4, 0, 0);
+    m_tabs[tabIdx].redBadgesLayout->setHorizontalSpacing(6);
+    m_tabs[tabIdx].redBadgesLayout->setVerticalSpacing(6);
+    vRedMain->addWidget(m_tabs[tabIdx].redBadgesWidget);
 
-    vData->addWidget(m_redInvoiceFrame);
+    vTab->addWidget(m_tabs[tabIdx].redInvoiceFrame);
 
     // Green Invoice Alert Panel (Hidden by default)
-    m_crossTodayFrame = new QFrame(this);
-    m_crossTodayFrame->setObjectName("crossTodayFrame");
-    m_crossTodayFrame->setStyleSheet(
-        "QFrame#crossTodayFrame { "
+    m_tabs[tabIdx].crossTodayFrame = new QFrame(container);
+    m_tabs[tabIdx].crossTodayFrame->setObjectName(QString("crossTodayFrame_%1").arg(tabIdx));
+    m_tabs[tabIdx].crossTodayFrame->setStyleSheet(
+        QString("QFrame#crossTodayFrame_%1 { "
         "  border: 1px solid #c3e6cb; "
         "  border-left: 5px solid #28a745; "
         "  border-radius: 4px; "
         "  background-color: #d4edda; "
-        "}"
+        "}").arg(tabIdx)
     );
-    m_crossTodayFrame->setVisible(false);
+    m_tabs[tabIdx].crossTodayFrame->setVisible(false);
 
-    QVBoxLayout *vGreenMain = new QVBoxLayout(m_crossTodayFrame);
+    QVBoxLayout *vGreenMain = new QVBoxLayout(m_tabs[tabIdx].crossTodayFrame);
     vGreenMain->setContentsMargins(10, 8, 10, 8);
     vGreenMain->setSpacing(4);
 
     QHBoxLayout *hGreenTop = new QHBoxLayout();
     hGreenTop->setContentsMargins(0, 0, 0, 0);
 
-    QLabel *greenWarningIcon = new QLabel("✅", m_crossTodayFrame);
+    QLabel *greenWarningIcon = new QLabel("✅", m_tabs[tabIdx].crossTodayFrame);
     greenWarningIcon->setStyleSheet("font-size: 12pt;");
 
-    m_crossTodayCountLabel = new QLabel("We found 0 invoice(s) crossing today (green).", m_crossTodayFrame);
-    m_crossTodayCountLabel->setStyleSheet("color: #155724; font-weight: bold; font-size: 9pt;");
+    m_tabs[tabIdx].crossTodayCountLabel = new QLabel("We found 0 invoice(s) crossing today (green).", m_tabs[tabIdx].crossTodayFrame);
+    m_tabs[tabIdx].crossTodayCountLabel->setStyleSheet("color: #155724; font-weight: bold; font-size: 9pt;");
 
-    m_toggleCrossTodayListBtn = new QPushButton("Show Invoices", m_crossTodayFrame);
-    m_toggleCrossTodayListBtn->setFixedWidth(110);
-    m_toggleCrossTodayListBtn->setCursor(Qt::PointingHandCursor);
-    m_toggleCrossTodayListBtn->setStyleSheet(
+    m_tabs[tabIdx].toggleCrossTodayListBtn = new QPushButton("Show Invoices", m_tabs[tabIdx].crossTodayFrame);
+    m_tabs[tabIdx].toggleCrossTodayListBtn->setFixedWidth(110);
+    m_tabs[tabIdx].toggleCrossTodayListBtn->setCursor(Qt::PointingHandCursor);
+    m_tabs[tabIdx].toggleCrossTodayListBtn->setProperty("tabIdx", tabIdx);
+    m_tabs[tabIdx].toggleCrossTodayListBtn->setStyleSheet(
         "QPushButton { "
         "  border: 1px solid #28a745; "
         "  border-radius: 10px; "
@@ -275,54 +333,55 @@ void MainWindow::setupUi() {
     );
 
     hGreenTop->addWidget(greenWarningIcon);
-    hGreenTop->addWidget(m_crossTodayCountLabel, 1);
-    hGreenTop->addWidget(m_toggleCrossTodayListBtn);
+    hGreenTop->addWidget(m_tabs[tabIdx].crossTodayCountLabel, 1);
+    hGreenTop->addWidget(m_tabs[tabIdx].toggleCrossTodayListBtn);
     vGreenMain->addLayout(hGreenTop);
 
-    m_crossTodayBadgesWidget = new QWidget(m_crossTodayFrame);
-    m_crossTodayBadgesWidget->setVisible(false);
-    m_crossTodayBadgesLayout = new QGridLayout(m_crossTodayBadgesWidget);
-    m_crossTodayBadgesLayout->setContentsMargins(0, 4, 0, 0);
-    m_crossTodayBadgesLayout->setHorizontalSpacing(6);
-    m_crossTodayBadgesLayout->setVerticalSpacing(6);
-    vGreenMain->addWidget(m_crossTodayBadgesWidget);
+    m_tabs[tabIdx].crossTodayBadgesWidget = new QWidget(m_tabs[tabIdx].crossTodayFrame);
+    m_tabs[tabIdx].crossTodayBadgesWidget->setVisible(false);
+    m_tabs[tabIdx].crossTodayBadgesLayout = new QGridLayout(m_tabs[tabIdx].crossTodayBadgesWidget);
+    m_tabs[tabIdx].crossTodayBadgesLayout->setContentsMargins(0, 4, 0, 0);
+    m_tabs[tabIdx].crossTodayBadgesLayout->setHorizontalSpacing(6);
+    m_tabs[tabIdx].crossTodayBadgesLayout->setVerticalSpacing(6);
+    vGreenMain->addWidget(m_tabs[tabIdx].crossTodayBadgesWidget);
 
-    vData->addWidget(m_crossTodayFrame);
+    vTab->addWidget(m_tabs[tabIdx].crossTodayFrame);
 
-    m_tableView = new QTableView(this);
-    m_tableModel = new QStandardItemModel(0, 9, this);
-    m_tableModel->setHorizontalHeaderLabels({"Client", "IFL-CLIENT", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Pallet Gross (2026)", "Cross Border"});
-    
-    m_proxyModel = new QSortFilterProxyModel(this);
-    m_proxyModel->setSourceModel(m_tableModel);
-    m_proxyModel->setFilterKeyColumn(-1);
-    m_proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
-    
-    m_tableView->setModel(m_proxyModel);
-    vData->addWidget(m_tableView);
+    // Table View & Models
+    m_tabs[tabIdx].tableView = new QTableView(container);
+    m_tabs[tabIdx].tableModel = new QStandardItemModel(0, headers.size(), container);
+    m_tabs[tabIdx].tableModel->setHorizontalHeaderLabels(headers);
 
-    // Re-draw buttons whenever table is filtered or sorted
-    connect(m_proxyModel, &QSortFilterProxyModel::layoutChanged, this, &MainWindow::updateActionButtons);
-    connect(m_proxyModel, &QSortFilterProxyModel::modelReset, this, &MainWindow::updateActionButtons);
-    
-    layout->addWidget(dataGroup, 1); // Added stretch factor 1 so it takes all available vertical space
+    m_tabs[tabIdx].proxyModel = new QSortFilterProxyModel(container);
+    m_tabs[tabIdx].proxyModel->setSourceModel(m_tabs[tabIdx].tableModel);
+    m_tabs[tabIdx].proxyModel->setFilterKeyColumn(-1);
+    m_tabs[tabIdx].proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
-    connect(m_fetchBtn, &QPushButton::clicked, this, &MainWindow::fetchSheetData);
-    connect(m_filterEdit, &QLineEdit::textChanged, this, &MainWindow::onFilterChanged);
+    m_tabs[tabIdx].tableView->setModel(m_tabs[tabIdx].proxyModel);
+    vTab->addWidget(m_tabs[tabIdx].tableView);
 
-    connect(browseBtn, &QPushButton::clicked, this, &MainWindow::browseImage);
-    connect(m_processBtn, &QPushButton::clicked, this, &MainWindow::startProcessing);
+    // Connections
+    connect(m_tabs[tabIdx].fetchBtn, &QPushButton::clicked, this, [this, tabIdx]() {
+        fetchSheetData(m_tabs[tabIdx].sheetName);
+    });
+    connect(m_tabs[tabIdx].filterEdit, &QLineEdit::textChanged, this, [this, tabIdx](const QString& text) {
+        if (text.isEmpty()) {
+            m_tabs[tabIdx].proxyModel->setFilterRegularExpression(QRegularExpression());
+        } else {
+            m_tabs[tabIdx].proxyModel->setFilterRegularExpression(
+                QRegularExpression(QRegularExpression::escape(text), QRegularExpression::CaseInsensitiveOption));
+        }
+    });
+    connect(m_tabs[tabIdx].proxyModel, &QSortFilterProxyModel::layoutChanged, this, [this, tabIdx]() {
+        updateTabActionButtons(tabIdx);
+    });
+    connect(m_tabs[tabIdx].proxyModel, &QSortFilterProxyModel::modelReset, this, [this, tabIdx]() {
+        updateTabActionButtons(tabIdx);
+    });
+    connect(m_tabs[tabIdx].toggleRedListBtn, &QPushButton::clicked, this, &MainWindow::onToggleRedList);
+    connect(m_tabs[tabIdx].toggleCrossTodayListBtn, &QPushButton::clicked, this, &MainWindow::onToggleCrossTodayList);
 
-    connect(m_toggleConfigBtn, &QPushButton::clicked, this, &MainWindow::toggleConfig);
-    connect(m_saveConfigBtn, &QPushButton::clicked, this, &MainWindow::saveConfig);
-
-    connect(m_toggleLogBtn, &QPushButton::clicked, this, &MainWindow::toggleLog);
-    connect(m_toggleAiInputBtn, &QPushButton::clicked, this, &MainWindow::toggleAiInput);
-    connect(m_toggleRedListBtn, &QPushButton::clicked, this, &MainWindow::onToggleRedList);
-    connect(m_toggleCrossTodayListBtn, &QPushButton::clicked, this, &MainWindow::onToggleCrossTodayList);
-
-    resize(900, 650);
-    setWindowTitle("Vision Logistics Data Entry");
+    return container;
 }
 
 void MainWindow::browseImage() {
@@ -395,24 +454,44 @@ void MainWindow::onGoogleFinished() {
     log("Process complete successfully.");
     m_processBtn->setEnabled(true);
     m_processBtn->setText("Extract & Sync");
-    fetchSheetData();
+    int currentIdx = m_tabWidget ? m_tabWidget->currentIndex() : 0;
+    if (currentIdx >= 0 && currentIdx < m_tabs.size()) {
+        fetchSheetData(m_tabs[currentIdx].sheetName);
+    } else {
+        fetchSheetData("2026");
+    }
 }
 
 void MainWindow::onGoogleError(const QString& message) {
     log("GOOGLE ERROR: " + message);
     m_processBtn->setEnabled(true);
     m_processBtn->setText("Extract & Sync");
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].fetchBtn) {
+            m_tabs[i].fetchBtn->setEnabled(true);
+            m_tabs[i].fetchBtn->setText(QString("Update %1 Data").arg(m_tabs[i].tabTitle));
+        }
+    }
 }
 
 void MainWindow::log(const QString& message) {
     m_logEdit->appendPlainText("> " + message);
 }
 
-void MainWindow::fetchSheetData() {
-    m_fetchBtn->setEnabled(false);
-    m_fetchBtn->setText("Fetching...");
-    log("Requesting data from 2026 sheet...");
-    m_sheetsClient->fetchSheetData("2026!A:Z");
+void MainWindow::fetchSheetData(const QString& sheetName) {
+    int tabIdx = -1;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].sheetName == sheetName || m_tabs[i].tabTitle == sheetName) {
+            tabIdx = i;
+            break;
+        }
+    }
+    if (tabIdx == -1) tabIdx = 0;
+
+    m_tabs[tabIdx].fetchBtn->setEnabled(false);
+    m_tabs[tabIdx].fetchBtn->setText("Fetching...");
+    log(QString("Requesting data from '%1' sheet...").arg(m_tabs[tabIdx].sheetName));
+    m_sheetsClient->fetchSheetData(m_tabs[tabIdx].sheetName, m_tabs[tabIdx].fetchRange);
 }
 
 bool MainWindow::isRedColor(const QColor& color) {
@@ -428,136 +507,240 @@ bool MainWindow::isGreenColor(const QColor& color) {
     int r = color.red();
     int g = color.green();
     int b = color.blue();
-    return (g > r + 15 && g > b + 15);
+    return (g > r + 8 && g > b + 8);
 }
 
-void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
-    m_tableModel->removeRows(0, m_tableModel->rowCount());
+void MainWindow::formatDateIfSerial(QString& val) {
+    bool ok;
+    double serial = val.toDouble(&ok);
+    if (ok && serial > 30000 && serial < 60000) { // Reasonable range for 20th/21st century
+        QDate baseDate(1899, 12, 30);
+        val = QLocale::c().toString(baseDate.addDays(static_cast<qint64>(serial)), "dd-MMM-yyyy");
+    }
+}
 
-    // Cache the data
-    m_dbManager->saveSheetCache(rows);
+void MainWindow::onDataFetched(const QString& sheetName, const QList<QList<CellData>>& rows) {
+    m_dbManager->saveSheetCache(sheetName, rows);
+
+    int tabIdx = -1;
+    for (int i = 0; i < m_tabs.size(); ++i) {
+        if (m_tabs[i].sheetName == sheetName || m_tabs[i].tabTitle == sheetName) {
+            tabIdx = i;
+            break;
+        }
+    }
+
+    if (tabIdx != -1) {
+        populateSheetData(tabIdx, rows);
+        m_tabs[tabIdx].fetchBtn->setEnabled(true);
+        m_tabs[tabIdx].fetchBtn->setText(tabIdx == 0 ? "Update 2026 Data" : "Update LOCAL SUPPLY Data");
+    }
+}
+
+void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& rows) {
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+    SheetTabInfo& tab = m_tabs[tabIdx];
+    tab.tableModel->removeRows(0, tab.tableModel->rowCount());
 
     int totalRows = rows.size();
-    for (int i = totalRows - 1; i >= 0; --i) {
-        const QList<CellData>& row = rows[i];
-        if (row.isEmpty()) continue;
-        int originalRowIndex = i + 1;
-        
-        CellData c_invoice = row.size() > 1 ? row[1] : CellData{"", Qt::white};
-        CellData c_container = row.size() > 2 ? row[2] : CellData{"", Qt::white};
-        CellData c_type = row.size() > 3 ? row[3] : CellData{"", Qt::white};
-        CellData c_truck = row.size() > 5 ? row[5] : CellData{"", Qt::white};
-        
-        // Handle numeric date conversion
-        bool ok;
-        double serial = c_truck.value.toDouble(&ok);
-        if (ok && serial > 30000 && serial < 60000) { // Reasonable range for 20th/21st century
-            QDate baseDate(1899, 12, 30);
-            c_truck.value = baseDate.addDays(static_cast<qint64>(serial)).toString("dd/MM/yyyy");
-        }
-
-        CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
-        double serialG = c_crossBorder.value.toDouble(&ok);
-        if (ok && serialG > 30000 && serialG < 60000) {
-            QDate baseDate(1899, 12, 30);
-            c_crossBorder.value = baseDate.addDays(static_cast<qint64>(serialG)).toString("dd/MM/yyyy");
-        }
-
-        CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
-        CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
-        CellData c_iflClient2026 = row.size() > 10 ? row[10] : CellData{"", Qt::white};
-        CellData c_pallet2026 = row.size() > 12 ? row[12] : CellData{"", Qt::white};
-
-        // Skip header row if it is one
-        if (c_invoice.value.toLower() == "invoice_no" || c_invoice.value.toLower() == "invoice") continue;
-        
-        // Skip if all relevant columns are empty
-        if (c_invoice.value.isEmpty() && c_container.value.isEmpty() && c_type.value.isEmpty()) continue;
-
-        QList<QStandardItem*> items;
-        auto addItem = [&](const CellData& cell, bool isInvoice = false) {
-            QStandardItem* item = new QStandardItem(cell.value);
-            if (cell.bgColor != Qt::white) {
-                item->setBackground(cell.bgColor);
-            }
-            if (isInvoice) {
-                item->setData(originalRowIndex, Qt::UserRole + 1);
-            }
-            items.append(item);
-        };
-
-        addItem(c_invoice, true);
-        addItem(c_iflClient2026);
-        addItem(c_container);
-        addItem(c_type);
-        addItem(c_truck);
-        addItem(c_container2026);
-        addItem(c_bill2026);
-        addItem(c_pallet2026);
-        addItem(c_crossBorder);
-        
-        m_tableModel->appendRow(items);
-    }
-    
-    m_fetchBtn->setEnabled(true);
-    m_fetchBtn->setText("Update 2026 Data");
-    log(QString("Fetched and displayed %1 rows.").arg(m_tableModel->rowCount()));
-
-    // Identify red invoices (where REF NO column has red background) and green invoices (where CROSS BORDER column has green background)
     QStringList redInvoices;
     QStringList crossTodayInvoices;
-    for (int i = 1; i < rows.size(); ++i) {
-        const QList<CellData>& row = rows[i];
-        if (row.isEmpty()) continue;
-        
-        CellData c_client = row.size() > 1 ? row[1] : CellData{"", Qt::white};
-        CellData c_invNo = row.size() > 2 ? row[2] : CellData{"", Qt::white};
-        CellData c_ref = row.size() > 3 ? row[3] : CellData{"", Qt::white};
-        CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
-        if (c_client.value.isEmpty() && c_invNo.value.isEmpty() && c_ref.value.isEmpty()) continue;
 
-        if (isRedColor(c_ref.bgColor)) {
-            QString invoiceVal = c_invNo.value.trimmed();
-            if (!invoiceVal.isEmpty()) {
-                redInvoices.append(invoiceVal);
-            }
+    if (tabIdx == 0) {
+        // Tab 0: "2026"
+        // Headers: Client (Col B), IFL-CLIENT (Col K), Invoice No (Col C), Ref No (Col D), Invoice Date (Col F), Container (2026) (Col I), Bill (2026) (Col J), Cross Border (Col G)
+        for (int i = totalRows - 1; i >= 0; --i) {
+            const QList<CellData>& row = rows[i];
+            if (row.isEmpty()) continue;
+            int originalRowIndex = i + 1;
+            
+            CellData c_client = row.size() > 1 ? row[1] : CellData{"", Qt::white};
+            CellData c_invNo = row.size() > 2 ? row[2] : CellData{"", Qt::white};
+            CellData c_refNo = row.size() > 3 ? row[3] : CellData{"", Qt::white};
+            CellData c_invDate = row.size() > 5 ? row[5] : CellData{"", Qt::white};
+            formatDateIfSerial(c_invDate.value);
+
+            CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
+            formatDateIfSerial(c_crossBorder.value);
+
+            CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
+            CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
+            CellData c_iflClient2026 = row.size() > 10 ? row[10] : CellData{"", Qt::white};
+
+            // Skip header row if it is one
+            if (c_client.value.toLower() == "client" || c_invNo.value.toLower() == "invoice_no" || c_invNo.value.toLower() == "invoice") continue;
+            
+            // Skip if all relevant columns are empty
+            if (c_client.value.isEmpty() && c_invNo.value.isEmpty() && c_refNo.value.isEmpty()) continue;
+
+            QList<QStandardItem*> items;
+            auto addItem = [&](const CellData& cell, bool isFirst = false, const QString& invoiceId = "") {
+                QStandardItem* item = new QStandardItem(cell.value);
+                if (cell.bgColor != Qt::white) {
+                    item->setBackground(cell.bgColor);
+                }
+                if (isFirst) {
+                    item->setData(originalRowIndex, Qt::UserRole + 1);
+                    item->setData(invoiceId, Qt::UserRole + 2);
+                }
+                items.append(item);
+            };
+
+            addItem(c_client, true, c_invNo.value.trimmed());
+            addItem(c_iflClient2026);
+            addItem(c_invNo);
+            addItem(c_refNo);
+            addItem(c_invDate);
+            addItem(c_container2026);
+            addItem(c_bill2026);
+            addItem(c_crossBorder);
+            
+            tab.tableModel->appendRow(items);
         }
 
-        if (isGreenColor(c_crossBorder.bgColor)) {
-            QString invoiceVal = c_invNo.value.trimmed();
-            if (!invoiceVal.isEmpty()) {
-                crossTodayInvoices.append(invoiceVal);
+        // Identify red invoices (where REF NO Col D is red) and green invoices (where CROSS BORDER Col G is green)
+        for (int i = 0; i < rows.size(); ++i) {
+            const QList<CellData>& row = rows[i];
+            if (row.isEmpty()) continue;
+            
+            CellData c_client = row.size() > 1 ? row[1] : CellData{"", Qt::white};
+            CellData c_invNo = row.size() > 2 ? row[2] : CellData{"", Qt::white};
+            CellData c_ref = row.size() > 3 ? row[3] : CellData{"", Qt::white};
+            CellData c_crossBorder = row.size() > 6 ? row[6] : CellData{"", Qt::white};
+
+            // Skip header row if it is one
+            if (c_client.value.toLower() == "client" || c_invNo.value.toLower() == "invoice_no" || c_invNo.value.toLower() == "invoice" || c_invNo.value.toLower() == "invoice no") continue;
+            if (c_client.value.isEmpty() && c_invNo.value.isEmpty() && c_ref.value.isEmpty()) continue;
+
+            if (isRedColor(c_ref.bgColor)) {
+                QString invoiceVal = c_invNo.value.trimmed();
+                if (!invoiceVal.isEmpty()) {
+                    redInvoices.append(invoiceVal);
+                }
+            }
+
+            if (isGreenColor(c_crossBorder.bgColor)) {
+                QString invoiceVal = c_invNo.value.trimmed();
+                if (!invoiceVal.isEmpty()) {
+                    crossTodayInvoices.append(invoiceVal);
+                }
+            }
+        }
+    } else if (tabIdx == 1) {
+        // Tab 1: "LOCAL SUPPLY"
+        // Columns mapped:
+        // Col A (index 0): N.O
+        // Col B (index 1): Client Name
+        // Col F (index 5): Invoice No
+        // Col G (index 6): Ref No
+        // Col I (index 8): Invoice Date (Auto-format serial dates >30000 and <60000 to dd-MMM-yyyy)
+        // Col J (index 9): Cross (Auto-format serial dates >30000 and <60000 to dd-MMM-yyyy)
+        for (int i = totalRows - 1; i >= 0; --i) {
+            const QList<CellData>& row = rows[i];
+            if (row.isEmpty()) continue;
+            int originalRowIndex = i + 1;
+
+            CellData c_no = row.size() > 0 ? row[0] : CellData{"", Qt::white}; // Col A (0)
+            CellData c_clientName = row.size() > 1 ? row[1] : CellData{"", Qt::white}; // Col B (1)
+            CellData c_invoiceNo = row.size() > 5 ? row[5] : CellData{"", Qt::white}; // Col F (5)
+            CellData c_refNo = row.size() > 6 ? row[6] : CellData{"", Qt::white}; // Col G (6)
+            CellData c_invoiceDate = row.size() > 8 ? row[8] : CellData{"", Qt::white}; // Col I (8)
+            formatDateIfSerial(c_invoiceDate.value);
+
+            CellData c_cross = row.size() > 9 ? row[9] : CellData{"", Qt::white}; // Col J (9)
+            formatDateIfSerial(c_cross.value);
+
+            // Skip header row
+            if (c_no.value.toLower() == "n.o" || c_no.value.toLower() == "no" || c_invoiceNo.value.toLower() == "invoice no" || c_invoiceNo.value.toLower() == "invoice_no" || c_clientName.value.toLower() == "client name") continue;
+
+            // Skip if empty
+            if (c_no.value.isEmpty() && c_clientName.value.isEmpty() && c_invoiceNo.value.isEmpty() && c_refNo.value.isEmpty()) continue;
+
+            QList<QStandardItem*> items;
+            auto addItem = [&](const CellData& cell, bool isFirst = false, const QString& invoiceId = "") {
+                QStandardItem* item = new QStandardItem(cell.value);
+                if (cell.bgColor != Qt::white) {
+                    item->setBackground(cell.bgColor);
+                }
+                if (isFirst) {
+                    item->setData(originalRowIndex, Qt::UserRole + 1);
+                    item->setData(invoiceId, Qt::UserRole + 2);
+                }
+                items.append(item);
+            };
+
+            addItem(c_no, true, c_invoiceNo.value.trimmed());
+            addItem(c_clientName);
+            addItem(c_invoiceNo);
+            addItem(c_refNo);
+            addItem(c_invoiceDate);
+            addItem(c_cross);
+
+            tab.tableModel->appendRow(items);
+        }
+
+        // Identify red alerts (Ref No Col G / index 6 is red -> badge shows Invoice No Col F / index 5)
+        // and green alerts (Cross Col J / index 9 is green -> badge shows Invoice No Col F / index 5)
+        for (int i = 0; i < rows.size(); ++i) {
+            const QList<CellData>& row = rows[i];
+            if (row.isEmpty()) continue;
+
+            CellData c_no = row.size() > 0 ? row[0] : CellData{"", Qt::white};
+            CellData c_clientName = row.size() > 1 ? row[1] : CellData{"", Qt::white};
+            CellData c_invoiceNo = row.size() > 5 ? row[5] : CellData{"", Qt::white};
+            CellData c_refNo = row.size() > 6 ? row[6] : CellData{"", Qt::white};
+            CellData c_cross = row.size() > 9 ? row[9] : CellData{"", Qt::white};
+
+            // Skip header row
+            if (c_no.value.toLower() == "n.o" || c_no.value.toLower() == "no" || c_invoiceNo.value.toLower() == "invoice no" || c_invoiceNo.value.toLower() == "invoice_no" || c_clientName.value.toLower() == "client name") continue;
+
+            if (c_invoiceNo.value.isEmpty() && c_refNo.value.isEmpty()) continue;
+
+            if (isRedColor(c_refNo.bgColor)) {
+                QString invoiceVal = c_invoiceNo.value.trimmed();
+                if (!invoiceVal.isEmpty()) {
+                    redInvoices.append(invoiceVal);
+                }
+            }
+
+            if (isGreenColor(c_cross.bgColor)) {
+                QString invoiceVal = c_invoiceNo.value.trimmed();
+                if (!invoiceVal.isEmpty()) {
+                    crossTodayInvoices.append(invoiceVal);
+                }
             }
         }
     }
 
-    if (!redInvoices.isEmpty()) {
-        m_redInvoiceCountLabel->setText(QString("We found %1 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.").arg(redInvoices.size()));
-        m_redInvoiceFrame->setVisible(true);
+    log(QString("Fetched and displayed %1 rows for '%2'.").arg(tab.tableModel->rowCount()).arg(tab.tabTitle));
+
+    // Red Invoices UI
+    QStringList uniqueRedInvoices;
+    for (const QString& inv : redInvoices) {
+        if (!uniqueRedInvoices.contains(inv)) {
+            uniqueRedInvoices.append(inv);
+        }
+    }
+
+    if (!uniqueRedInvoices.isEmpty()) {
+        tab.redInvoiceCountLabel->setText(QString("We found %1 invoice(s) highlighted in red (yet to cross the border). Focus on these items first.").arg(uniqueRedInvoices.size()));
+        tab.redInvoiceFrame->setVisible(true);
 
         // Clear existing badges
         QLayoutItem *child;
-        while ((child = m_redBadgesLayout->takeAt(0)) != nullptr) {
+        while ((child = tab.redBadgesLayout->takeAt(0)) != nullptr) {
             if (child->widget()) {
                 child->widget()->deleteLater();
             }
             delete child;
         }
 
-        // Deduplicate
-        QStringList uniqueRedInvoices;
-        for (const QString& inv : redInvoices) {
-            if (!uniqueRedInvoices.contains(inv)) {
-                uniqueRedInvoices.append(inv);
-            }
-        }
-
-        // Add buttons
         int colCount = 8;
         for (int idx = 0; idx < uniqueRedInvoices.size(); ++idx) {
             const QString& invNo = uniqueRedInvoices[idx];
-            QPushButton *badge = new QPushButton(invNo, m_redInvoiceFrame);
+            QPushButton *badge = new QPushButton(invNo, tab.redInvoiceFrame);
             badge->setCursor(Qt::PointingHandCursor);
+            badge->setProperty("tabIdx", tabIdx);
             badge->setProperty("invoiceNo", invNo);
             badge->setStyleSheet(
                 "QPushButton { "
@@ -578,40 +761,40 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
             
             int r = idx / colCount;
             int c = idx % colCount;
-            m_redBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
+            tab.redBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
         }
-        m_redBadgesLayout->setColumnStretch(colCount, 1);
+        tab.redBadgesLayout->setColumnStretch(colCount, 1);
     } else {
-        m_redInvoiceFrame->setVisible(false);
+        tab.redInvoiceFrame->setVisible(false);
     }
 
-    if (!crossTodayInvoices.isEmpty()) {
-        m_crossTodayCountLabel->setText(QString("We found %1 invoice(s) crossing today (green).").arg(crossTodayInvoices.size()));
-        m_crossTodayFrame->setVisible(true);
+    // Green Invoices UI
+    QStringList uniqueCrossTodayInvoices;
+    for (const QString& inv : crossTodayInvoices) {
+        if (!uniqueCrossTodayInvoices.contains(inv)) {
+            uniqueCrossTodayInvoices.append(inv);
+        }
+    }
+
+    if (!uniqueCrossTodayInvoices.isEmpty()) {
+        tab.crossTodayCountLabel->setText(QString("We found %1 invoice(s) crossing today (green).").arg(uniqueCrossTodayInvoices.size()));
+        tab.crossTodayFrame->setVisible(true);
 
         // Clear existing badges
         QLayoutItem *child;
-        while ((child = m_crossTodayBadgesLayout->takeAt(0)) != nullptr) {
+        while ((child = tab.crossTodayBadgesLayout->takeAt(0)) != nullptr) {
             if (child->widget()) {
                 child->widget()->deleteLater();
             }
             delete child;
         }
 
-        // Deduplicate
-        QStringList uniqueCrossTodayInvoices;
-        for (const QString& inv : crossTodayInvoices) {
-            if (!uniqueCrossTodayInvoices.contains(inv)) {
-                uniqueCrossTodayInvoices.append(inv);
-            }
-        }
-
-        // Add buttons
         int colCount = 8;
         for (int idx = 0; idx < uniqueCrossTodayInvoices.size(); ++idx) {
             const QString& invNo = uniqueCrossTodayInvoices[idx];
-            QPushButton *badge = new QPushButton(invNo, m_crossTodayFrame);
+            QPushButton *badge = new QPushButton(invNo, tab.crossTodayFrame);
             badge->setCursor(Qt::PointingHandCursor);
+            badge->setProperty("tabIdx", tabIdx);
             badge->setProperty("invoiceNo", invNo);
             badge->setStyleSheet(
                 "QPushButton { "
@@ -632,19 +815,14 @@ void MainWindow::onDataFetched(const QList<QList<CellData>>& rows) {
             
             int r = idx / colCount;
             int c = idx % colCount;
-            m_crossTodayBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
+            tab.crossTodayBadgesLayout->addWidget(badge, r, c, Qt::AlignLeft | Qt::AlignVCenter);
         }
-        m_crossTodayBadgesLayout->setColumnStretch(colCount, 1);
+        tab.crossTodayBadgesLayout->setColumnStretch(colCount, 1);
     } else {
-        m_crossTodayFrame->setVisible(false);
+        tab.crossTodayFrame->setVisible(false);
     }
 
-    // Populate buttons for action cell
-    updateActionButtons();
-}
-
-void MainWindow::onFilterChanged(const QString& text) {
-    m_proxyModel->setFilterRegularExpression(text);
+    updateTabActionButtons(tabIdx);
 }
 
 void MainWindow::toggleConfig() {
@@ -660,6 +838,20 @@ void MainWindow::toggleLog() {
 void MainWindow::toggleAiInput() {
     m_aiInputGroup->setVisible(!m_aiInputGroup->isVisible());
     m_toggleAiInputBtn->setText(m_aiInputGroup->isVisible() ? "✖ Close AI Entry" : "⚡ AI Data Entry");
+}
+
+void MainWindow::toggleEditMode() {
+    m_isEditMode = !m_isEditMode;
+    if (m_isEditMode) {
+        m_toggleEditModeBtn->setText("✏️ Edit Mode: ON");
+        m_toggleEditModeBtn->setStyleSheet("background-color: #FF9800; color: white; font-weight: bold; border-radius: 4px; padding: 4px;");
+        log("Edit mode enabled. Revision buttons are now visible.");
+    } else {
+        m_toggleEditModeBtn->setText("🔒 Edit Mode: OFF");
+        m_toggleEditModeBtn->setStyleSheet("background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font-weight: bold;");
+        log("Edit mode disabled. Revision buttons are hidden.");
+    }
+    updateActionButtons();
 }
 
 void MainWindow::saveConfig() {
@@ -753,32 +945,105 @@ void MainWindow::loadConfig() {
 }
 
 void MainWindow::updateActionButtons() {
-    for (int row = 0; row < m_proxyModel->rowCount(); ++row) {
-        QModelIndex proxyIndex = m_proxyModel->index(row, 8);
-        QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+    for (int tabIdx = 0; tabIdx < m_tabs.size(); ++tabIdx) {
+        updateTabActionButtons(tabIdx);
+    }
+}
+
+void MainWindow::updateTabActionButtons(int tabIdx) {
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+    SheetTabInfo& tab = m_tabs[tabIdx];
+    int crossCol = tab.crossColumnIndex;
+
+    tab.tableView->showColumn(crossCol);
+
+    int rowCount = tab.proxyModel->rowCount();
+    for (int row = 0; row < rowCount; ++row) {
+        QModelIndex proxyIndex = tab.proxyModel->index(row, crossCol);
+
+        QModelIndex sourceIndex = tab.proxyModel->mapToSource(proxyIndex);
+        if (!sourceIndex.isValid()) {
+            if (tab.tableView->indexWidget(proxyIndex)) {
+                tab.tableView->setIndexWidget(proxyIndex, nullptr);
+            }
+            continue;
+        }
         
-        QString val = m_tableModel->data(m_tableModel->index(sourceIndex.row(), 8)).toString().trimmed();
-        if (val.isEmpty()) {
-            QModelIndex clientSourceIndex = m_tableModel->index(sourceIndex.row(), 0);
-            QModelIndex invSourceIndex = m_tableModel->index(sourceIndex.row(), 2);
-            QString invoiceId = m_tableModel->data(invSourceIndex).toString();
-            
-            QStandardItem* item = m_tableModel->itemFromIndex(clientSourceIndex);
-            if (!item) continue;
-            
-            int originalRowIndex = item->data(Qt::UserRole + 1).toInt();
-            if (originalRowIndex <= 0) continue;
-            
-            QPushButton *btn = new QPushButton("Cross", m_tableView);
-            btn->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
-            btn->setCursor(Qt::PointingHandCursor);
-            btn->setProperty("invoiceId", invoiceId);
-            btn->setProperty("originalRowIndex", originalRowIndex);
-            
-            connect(btn, &QPushButton::clicked, this, &MainWindow::onCrossButtonClicked);
-            m_tableView->setIndexWidget(proxyIndex, btn);
+        QString val = tab.tableModel->data(tab.tableModel->index(sourceIndex.row(), crossCol)).toString().trimmed();
+        QStandardItem* firstItem = tab.tableModel->item(sourceIndex.row(), 0);
+        if (!firstItem) {
+            if (tab.tableView->indexWidget(proxyIndex)) {
+                tab.tableView->setIndexWidget(proxyIndex, nullptr);
+            }
+            continue;
+        }
+
+        int originalRowIndex = firstItem->data(Qt::UserRole + 1).toInt();
+        QString invoiceId = firstItem->data(Qt::UserRole + 2).toString();
+        if (invoiceId.isEmpty()) {
+            invoiceId = tab.tableModel->data(tab.tableModel->index(sourceIndex.row(), 2)).toString();
+        }
+        if (originalRowIndex <= 0) {
+            if (tab.tableView->indexWidget(proxyIndex)) {
+                tab.tableView->setIndexWidget(proxyIndex, nullptr);
+            }
+            continue;
+        }
+
+        if (m_isEditMode) {
+            // Show two buttons: Cross/Revise + Clear (Clear only on tab 0)
+            QWidget *container = new QWidget(tab.tableView);
+            QHBoxLayout *cellLayout = new QHBoxLayout(container);
+            cellLayout->setContentsMargins(2, 2, 2, 2);
+            cellLayout->setSpacing(4);
+
+            QPushButton *actionBtn = nullptr;
+            if (val.isEmpty()) {
+                actionBtn = new QPushButton("Cross", container);
+                actionBtn->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
+                actionBtn->setProperty("currentVal", "");
+            } else {
+                actionBtn = new QPushButton("Revise (" + val + ")", container);
+                actionBtn->setStyleSheet("background-color: #FF9800; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
+                actionBtn->setProperty("currentVal", val);
+            }
+            actionBtn->setCursor(Qt::PointingHandCursor);
+            actionBtn->setProperty("tabIdx", tabIdx);
+            actionBtn->setProperty("invoiceId", invoiceId);
+            actionBtn->setProperty("originalRowIndex", originalRowIndex);
+            connect(actionBtn, &QPushButton::clicked, this, &MainWindow::onCrossButtonClicked);
+
+            cellLayout->addWidget(actionBtn);
+
+            if (tabIdx == 0) {
+                QPushButton *clearBtn = new QPushButton("🗑️ Clear", container);
+                clearBtn->setStyleSheet("background-color: #dc3545; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
+                clearBtn->setCursor(Qt::PointingHandCursor);
+                clearBtn->setProperty("invoiceId", invoiceId);
+                connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearButtonClicked);
+                cellLayout->addWidget(clearBtn);
+            }
+
+            container->setLayout(cellLayout);
+            tab.tableView->setIndexWidget(proxyIndex, container);
         } else {
-            m_tableView->setIndexWidget(proxyIndex, nullptr);
+            // Normal Mode: Show Cross button if empty, show plain text date if filled
+            if (val.isEmpty()) {
+                QPushButton *btn = new QPushButton("Cross", tab.tableView);
+                btn->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border: none; border-radius: 3px; padding: 2px;");
+                btn->setCursor(Qt::PointingHandCursor);
+                btn->setProperty("tabIdx", tabIdx);
+                btn->setProperty("invoiceId", invoiceId);
+                btn->setProperty("originalRowIndex", originalRowIndex);
+                btn->setProperty("currentVal", "");
+                
+                connect(btn, &QPushButton::clicked, this, &MainWindow::onCrossButtonClicked);
+                tab.tableView->setIndexWidget(proxyIndex, btn);
+            } else {
+                if (tab.tableView->indexWidget(proxyIndex)) {
+                    tab.tableView->setIndexWidget(proxyIndex, nullptr);
+                }
+            }
         }
     }
 }
@@ -787,19 +1052,41 @@ void MainWindow::onCrossButtonClicked() {
     QPushButton *btn = qobject_cast<QPushButton*>(sender());
     if (!btn) return;
 
+    int tabIdx = btn->property("tabIdx").toInt();
     QString invoiceId = btn->property("invoiceId").toString();
     int originalRowIndex = btn->property("originalRowIndex").toInt();
+    QString currentVal = btn->property("currentVal").toString();
+
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+    const SheetTabInfo& tab = m_tabs[tabIdx];
 
     // Create a modern modal date dialog
     QDialog dialog(this);
-    dialog.setWindowTitle("Commit Cross Border Date");
+    dialog.setWindowTitle(currentVal.isEmpty() ? "Commit Cross Border Date" : "Revise Cross Border Date");
     dialog.setModal(true);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    QLabel *label = new QLabel(QString("Select Border Crossing Date for Invoice \"%1\":").arg(invoiceId), &dialog);
-    QDateEdit *dateEdit = new QDateEdit(QDate::currentDate(), &dialog);
+    QLabel *label = new QLabel(QString(currentVal.isEmpty() 
+        ? "Select Border Crossing Date for Invoice \"%1\":"
+        : "Revise Border Crossing Date for Invoice \"%1\":").arg(invoiceId), &dialog);
+        
+    QDate initialDate = QDate::currentDate();
+    if (!currentVal.isEmpty()) {
+        QDate parsed = QLocale::c().toDate(currentVal, "dd-MMM-yyyy");
+        if (!parsed.isValid()) {
+            parsed = QDate::fromString(currentVal, "dd/MM/yyyy");
+        }
+        if (!parsed.isValid()) {
+            parsed = QDate::fromString(currentVal, "dd-MM-yyyy");
+        }
+        if (parsed.isValid()) {
+            initialDate = parsed;
+        }
+    }
+    
+    QDateEdit *dateEdit = new QDateEdit(initialDate, &dialog);
     dateEdit->setCalendarPopup(true);
-    dateEdit->setDisplayFormat("dd/MM/yyyy");
+    dateEdit->setDisplayFormat("dd-MMM-yyyy");
     
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *okBtn = new QPushButton("Confirm", &dialog);
@@ -818,7 +1105,7 @@ void MainWindow::onCrossButtonClicked() {
 
     if (dialog.exec() == QDialog::Accepted) {
         QDate selectedDate = dateEdit->date();
-        QString dateStr = selectedDate.toString("dd/MM/yyyy");
+        QString dateStr = QLocale::c().toString(selectedDate, "dd-MMM-yyyy");
         
         // Ask for confirmation
         QMessageBox::StandardButton reply = QMessageBox::question(
@@ -829,42 +1116,92 @@ void MainWindow::onCrossButtonClicked() {
         );
         
         if (reply == QMessageBox::Yes) {
-            log(QString("Committing border crossing date %1 for Invoice %2 (Row %3)...").arg(dateStr).arg(invoiceId).arg(originalRowIndex));
-            m_sheetsClient->updateCell(QString("2026!G%1").arg(originalRowIndex), dateStr);
+            QString updateRange;
+            if (tab.sheetName.contains(" ")) {
+                updateRange = QString("'%1'!%2%3").arg(tab.sheetName).arg(tab.crossColumnLetter).arg(originalRowIndex);
+            } else {
+                updateRange = QString("%1!%2%3").arg(tab.sheetName).arg(tab.crossColumnLetter).arg(originalRowIndex);
+            }
+            log(QString("Committing border crossing date %1 for Invoice %2 in %3 (Row %4)...")
+                .arg(dateStr).arg(invoiceId).arg(tab.sheetName).arg(originalRowIndex));
+            m_sheetsClient->updateCell(updateRange, dateStr);
         }
     }
 }
 
 void MainWindow::onToggleRedList() {
-    bool visible = !m_redBadgesWidget->isVisible();
-    m_redBadgesWidget->setVisible(visible);
-    m_toggleRedListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    int tabIdx = btn->property("tabIdx").toInt();
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+
+    bool visible = !m_tabs[tabIdx].redBadgesWidget->isVisible();
+    m_tabs[tabIdx].redBadgesWidget->setVisible(visible);
+    m_tabs[tabIdx].toggleRedListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
 }
 
 void MainWindow::onRedBadgeClicked() {
     QPushButton *btn = qobject_cast<QPushButton*>(sender());
     if (!btn) return;
+    int tabIdx = btn->property("tabIdx").toInt();
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+
     QString invNo = btn->property("invoiceNo").toString();
-    if (m_filterEdit->text() == invNo) {
-        m_filterEdit->clear();
+    if (m_tabs[tabIdx].filterEdit->text() == invNo) {
+        m_tabs[tabIdx].filterEdit->clear();
     } else {
-        m_filterEdit->setText(invNo);
+        m_tabs[tabIdx].filterEdit->setText(invNo);
     }
 }
 
 void MainWindow::onToggleCrossTodayList() {
-    bool visible = !m_crossTodayBadgesWidget->isVisible();
-    m_crossTodayBadgesWidget->setVisible(visible);
-    m_toggleCrossTodayListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    int tabIdx = btn->property("tabIdx").toInt();
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+
+    bool visible = !m_tabs[tabIdx].crossTodayBadgesWidget->isVisible();
+    m_tabs[tabIdx].crossTodayBadgesWidget->setVisible(visible);
+    m_tabs[tabIdx].toggleCrossTodayListBtn->setText(visible ? "Hide Invoices" : "Show Invoices");
 }
 
 void MainWindow::onCrossTodayBadgeClicked() {
     QPushButton *btn = qobject_cast<QPushButton*>(sender());
     if (!btn) return;
+    int tabIdx = btn->property("tabIdx").toInt();
+    if (tabIdx < 0 || tabIdx >= m_tabs.size()) return;
+
     QString invNo = btn->property("invoiceNo").toString();
-    if (m_filterEdit->text() == invNo) {
-        m_filterEdit->clear();
+    if (m_tabs[tabIdx].filterEdit->text() == invNo) {
+        m_tabs[tabIdx].filterEdit->clear();
     } else {
-        m_filterEdit->setText(invNo);
+        m_tabs[tabIdx].filterEdit->setText(invNo);
+    }
+}
+
+void MainWindow::onClearButtonClicked() {
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    QString invoiceId = btn->property("invoiceId").toString();
+    if (invoiceId.isEmpty()) return;
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, 
+        "Confirm Clear", 
+        QString("Are you sure you want to clear all container data for Invoice \"%1\"? "
+                "This will delete matching rows from Google Sheets (CONTAINER sheet) and the local database cache.").arg(invoiceId),
+        QMessageBox::Yes | QMessageBox::No
+    );
+
+    if (reply == QMessageBox::Yes) {
+        log(QString("Clearing container entries locally for Invoice %1...").arg(invoiceId));
+        m_dbManager->deleteLocally(invoiceId);
+        
+        log(QString("Requesting Google Sheets to clear rows for Invoice %1...").arg(invoiceId));
+        btn->setEnabled(false);
+        btn->setText("Clearing...");
+        
+        m_sheetsClient->deleteContainerRow(invoiceId);
     }
 }

@@ -11,6 +11,11 @@ set(CMAKE_AUTORCC ON)
 # Find Qt
 find_package(Qt6 COMPONENTS Core Gui Widgets Network Sql Concurrent REQUIRED)
 
+option(ENABLE_CROSS_BORDER "Enable Cross Border features" ON)
+if(ENABLE_CROSS_BORDER)
+    add_compile_definitions(ENABLE_CROSS_BORDER)
+endif()
+
 add_executable(add_container WIN32
     main.cpp
     MainWindow.cpp

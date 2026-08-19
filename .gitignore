@@ -1,36 +1,58 @@
-# Build directories
+# Build directories & outputs
 build/
-build_qt6/
+build_*/
+dist_*/
+**/build/
+**/build_*/
+**/dist_*/
+
+# CMake generated files
+CMakeFiles/
+**/CMakeFiles/
+CMakeCache.txt
+**/CMakeCache.txt
+cmake_install.cmake
+**/cmake_install.cmake
+Makefile
+**/Makefile
 
 # Python
 __pycache__/
 *.pyc
+*.spec
 
-# IDE files
+# IDE & Tool files
 .vscode/
 .idea/
 *.user
+.antigravitycli/
+**/.antigravitycli/
+scratch/
 
-# Database and secrets
+# Database, secrets & local configs
 *.db
 secret.json
-backend/secret.json
-cpp_backend/secret.json
+**/secret.json
 .env
 .env_ready
+*.ini
+**/*.ini
 
-# Compiled files
+# Compiled files & Archives
 *.exe
 *.obj
 *.o
 *.a
 *.dll
+*.zip
+**/*.zip
 
 # Qt generated files
 *_autogen/
 moc_*.cpp
 ui_*.h
 qrc_*.cpp
+**.qm
 
 # Node dependencies
 node_modules/
@@ -45,4 +67,3 @@ android/app/build/
 android/capacitor-cordova-android-plugins/
 android/local.properties
 .gradle/
-

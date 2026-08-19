@@ -59,6 +59,7 @@ void GeminiClient::processImage(const QString& imagePath, const QStringList& cli
 
 void GeminiClient::onUploadFinished() {
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply) return;
     if (reply->error() != QNetworkReply::NoError) {
         QString responseBody = reply->readAll();
         emit error(QString("Upload failed (%1): %2").arg(reply->errorString()).arg(responseBody));

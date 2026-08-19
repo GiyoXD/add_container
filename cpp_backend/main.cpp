@@ -1,4 +1,8 @@
 #include <QApplication>
+#include <QMessageBox>
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
 #include "MainWindow.h"
 
 #ifdef _WIN32
@@ -6,37 +10,25 @@
 #endif
 
 int main(int argc, char *argv[]) {
-#ifdef _WIN32
-    // Create a unique named mutex for the current user session
-    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Local\\AddContainerSingleInstanceMutex_JPZ031127");
-    if (hMutex == NULL) {
-        return 1;
-    }
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        // Another instance is already running. Find the existing window.
-        HWND hwnd = FindWindowA(NULL, "Vision Logistics Data Entry");
-        if (hwnd) {
-            // Restore window if minimized
-            if (IsIconic(hwnd)) {
-                ShowWindow(hwnd, SW_RESTORE);
-            }
-            // Bring to foreground
-            SetForegroundWindow(hwnd);
-        }
-        CloseHandle(hMutex);
-        return 0;
-    }
-#endif
+    // Ensure Qt finds plugins (platforms/qwindows.dll, sqldrivers/qsqlite.dll) in application directory
+    QString appDir = QCoreApplication::applicationDirPath();
+    QCoreApplication::addLibraryPath(appDir);
 
     QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
-    
-    int result = a.exec();
 
+    try {
+        MainWindow w;
+        w.show();
+        return a.exec();
+    } catch (const std::exception& e) {
 #ifdef _WIN32
-    CloseHandle(hMutex);
+        MessageBoxA(NULL, e.what(), "Startup Error", MB_OK | MB_ICONERROR);
 #endif
-
-    return result;
+        return 1;
+    } catch (...) {
+#ifdef _WIN32
+        MessageBoxA(NULL, "An unknown error occurred during startup.", "Startup Error", MB_OK | MB_ICONERROR);
+#endif
+        return 1;
+    }
 }

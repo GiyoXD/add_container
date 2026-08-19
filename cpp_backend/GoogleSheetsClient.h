@@ -11,17 +11,20 @@
 class GoogleSheetsClient : public QObject {
     Q_OBJECT
 public:
-    enum class PendingAction { None, Append, Fetch, UpdateCell };
+    enum class PendingAction { None, Append, Fetch, UpdateCell, DeleteContainerRow };
 
     explicit GoogleSheetsClient(const QString& serviceAccountData, const QString& spreadsheetId, QObject *parent = nullptr);
     void setSpreadsheetId(const QString& id) { m_spreadsheetId = id; }
     void setServiceAccountData(const QString& data) { m_serviceAccountData = data; m_accessToken.clear(); }
     void appendRows(const QList<DataRow>& rows);
     void fetchSheetData(const QString& range);
+    void fetchSheetData(const QString& sheetName, const QString& range);
     void updateCell(const QString& range, const QString& value);
+    void deleteContainerRow(const QString& invoiceId);
 
 signals:
     void finished();
+    void dataFetched(const QString& sheetName, const QList<QList<CellData>>& rows);
     void dataFetched(const QList<QList<CellData>>& rows);
     void error(const QString& message);
     void statusUpdate(const QString& status);
@@ -30,6 +33,9 @@ private slots:
     void onTokenReceived();
     void onAppendFinished();
     void onFetchFinished();
+    void onDeleteMetadataReceived();
+    void onDeleteRowsFetched();
+    void onDeleteFinished();
 
 private:
     QString m_serviceAccountData;
@@ -37,9 +43,12 @@ private:
     QString m_accessToken;
     QNetworkAccessManager *m_networkManager;
     QList<DataRow> m_pendingRows;
+    QString m_pendingFetchSheetName;
     QString m_pendingFetchRange;
     QString m_pendingUpdateRange;
     QString m_pendingUpdateValue;
+    QString m_pendingDeleteInvoiceId;
+    int m_deleteContainerSheetId;
     PendingAction m_pendingAction = PendingAction::None;
 
     void requestAccessToken();

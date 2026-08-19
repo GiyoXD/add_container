@@ -484,9 +484,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatDateToDDMMYY(date) {
         if (!date || isNaN(date.getTime())) return '';
         const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[date.getMonth()];
         const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
+        return `${day}-${month}-${year}`;
     }
 
     function isRedColor(bg) {
@@ -897,9 +898,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     controls.appendChild(commitBtn);
                     container.appendChild(controls);
 
-                    // Initialize flatpickr on the input for consistent DD/MM/YYYY rendering
+                    // Initialize flatpickr on the input for consistent DD-MMM-YYYY rendering
                     flatpickr(dateInput, {
-                        dateFormat: "d/m/Y",
+                        dateFormat: "d-M-Y",
                         defaultDate: new Date(),
                         allowInput: true
                     });
