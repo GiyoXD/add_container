@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
             crossColIndex: 6, // 0-indexed Column G
             refNoColIndex: 3, // 0-indexed Column D
             actionColTitle: 'CROSS BORDER',
-            targetCols: ["CLIENT", "IFL-CLIENT", "INV NO", "REF NO", "INV DAT", "CONTAINER", "BILL"],
+            targetCols: ["CLIENT", "IFL-CLIENT", "INV NO", "REF NO", "INV DAT", "CONTAINER", "BILL", "PALLET: GROSS / AMOUNT"],
             allowContainerDelete: true
         },
         {
@@ -108,10 +108,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Date formatting helper: DD-MMM-YYYY (e.g. 02-Jan-2026)
     function formatDateDDMMMYYYY(date) {
         if (!date || isNaN(date.getTime())) return '';
-        const day = String(date.getUTCDate()).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = months[date.getUTCMonth()];
-        const year = date.getUTCFullYear();
+        const month = months[date.getMonth()];
+        const year = date.getFullYear();
         return `${day}-${month}-${year}`;
     }
 
@@ -125,6 +125,55 @@ document.addEventListener('DOMContentLoaded', () => {
             return `${day}-${month}-${year}`;
         }
         return String(serial);
+    }
+
+    function getTodayFormattedDates() {
+        const now = new Date();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Local date string
+        const lDay = String(now.getDate()).padStart(2, '0');
+        const lMonth = months[now.getMonth()];
+        const lYear = now.getFullYear();
+        const localStr = `${lDay}-${lMonth}-${lYear}`.toLowerCase();
+        
+        // UTC date string
+        const uDay = String(now.getUTCDate()).padStart(2, '0');
+        const uMonth = months[now.getUTCMonth()];
+        const uYear = now.getUTCFullYear();
+        const utcStr = `${uDay}-${uMonth}-${uYear}`.toLowerCase();
+        
+        return [localStr, utcStr];
+    }
+
+    function isSameDateAsToday(cellVal) {
+        if (cellVal === null || cellVal === undefined || cellVal === '') return false;
+        
+        let strVal = '';
+        if (typeof cellVal === 'number' && cellVal > 30000 && cellVal < 60000) {
+            strVal = serialToFormattedDate(cellVal);
+        } else {
+            strVal = String(cellVal).trim();
+        }
+        
+        if (!strVal) return false;
+        
+        const [localToday, utcToday] = getTodayFormattedDates();
+        const lower = strVal.toLowerCase();
+        if (lower === localToday || lower === utcToday) {
+            return true;
+        }
+        
+        // Attempt Date parsing for alternative formats (e.g. YYYY-MM-DD or MM/DD/YYYY)
+        const parsed = new Date(strVal);
+        if (!isNaN(parsed.getTime())) {
+            const parsedFormatted = formatDateDDMMMYYYY(parsed).toLowerCase();
+            if (parsedFormatted === localToday || parsedFormatted === utcToday) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     function isRedColor(bg) {
@@ -142,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const g = Math.round((bg.green || 0) * 255);
         const b = Math.round((bg.blue || 0) * 255);
         // Green color check: green is dominant and above threshold
-        return (g > r + 15 && g > b + 15);
+        return (g > r + 8 && g > b + 8);
     }
 
     // Switch Tab and load data
@@ -885,6 +934,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     colIndex = headers.findIndex(h => h.includes("INV NO") || h.includes("INVOICE") || h.includes("INV"));
                 } else if (tc === "REF NO") {
                     colIndex = headers.findIndex(h => h.includes("REF NO") || h.includes("REF"));
+                } else if (tc === "PALLET: GROSS / AMOUNT" || tc.includes("GROSS") || tc.includes("AMOUNT")) {
+                    colIndex = headers.findIndex(h => h.includes("GROSS") || h.includes("AMOUNT") || h.includes("PALLET"));
                 } else {
                     colIndex = headers.findIndex(h => h.includes(tc));
                 }
@@ -899,13 +950,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (tc === "REF NO") colIndex = 6;
                     else if (tc === "INV DAT") colIndex = 8;
                 } else {
-                    if (tc === "CLIENT") colIndex = 0;
-                    else if (tc === "IFL-CLIENT") colIndex = 1;
+                    if (tc === "CLIENT") colIndex = 1;
+                    else if (tc === "IFL-CLIENT") colIndex = 10;
                     else if (tc === "INV NO") colIndex = 2;
                     else if (tc === "REF NO") colIndex = 3;
-                    else if (tc === "INV DAT") colIndex = 4;
-                    else if (tc === "CONTAINER") colIndex = 7;
-                    else if (tc === "BILL") colIndex = 8;
+                    else if (tc === "INV DAT") colIndex = 5;
+                    else if (tc === "CONTAINER") colIndex = 8;
+                    else if (tc === "BILL") colIndex = 9;
+                    else if (tc === "PALLET: GROSS / AMOUNT" || tc.includes("GROSS") || tc.includes("AMOUNT")) colIndex = 12;
                 }
             }
 
@@ -919,35 +971,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Flagged Red & Green Invoices
         const invCol = colMap.find(c => c.name === "INV NO") || { index: tab.sheetName === 'LOCAL  SUPPLY' ? 5 : 2 };
-        const refNoColIdx = tab.refNoColIndex;
-        const crossColIdx = tab.crossColIndex;
+        const clientCol = colMap.find(c => c.name === "CLIENT" || c.name === "CLIENT NAME" || c.name === "CUSTOMER");
+        let refNoColIdx = tab.refNoColIndex;
+        let crossColIdx = tab.crossColIndex;
+        if (headers && headers.length > 0) {
+            const dynRef = headers.findIndex(h => h === "REF NO" || h.includes("REF NO") || h === "REF");
+            if (dynRef !== -1) refNoColIdx = dynRef;
+            const dynCross = headers.findIndex(h => h === "CROSS BORDER" || h === "CROSS" || h.includes("CROSS") || h.includes("ACTUAL LOADING DATE"));
+            if (dynCross !== -1) crossColIdx = dynCross;
+        }
+
+        // Helper to safely extract string value from a cell index
+        const getRowCellStr = (row, idx) => {
+            if (!row.values || idx === undefined || idx < 0 || idx >= row.values.length) return '';
+            const cell = row.values[idx];
+            if (!cell || !cell.effectiveValue) return '';
+            const eff = cell.effectiveValue;
+            return (eff.stringValue || (eff.numberValue !== undefined ? String(eff.numberValue) : '')).trim();
+        };
+
+        // Filter out phantom/ghost rows (where CLIENT, INV NO, and REF NO are all empty, e.g. rows with only N.O)
+        const validDataRows = dataRows.filter(row => {
+            if (!row.values || row.values.length === 0) return false;
+            const clientVal = clientCol ? getRowCellStr(row, clientCol.index) : '';
+            const invVal = invCol ? getRowCellStr(row, invCol.index) : '';
+            const refVal = refNoColIdx !== undefined ? getRowCellStr(row, refNoColIdx) : '';
+            
+            // Skip header row if repeated
+            const lowerInv = invVal.toLowerCase();
+            if (lowerInv === "inv no" || lowerInv === "invoice no" || lowerInv === "invoice") return false;
+            
+            // A valid shipping record must have at least an Invoice No, Client Name, or Ref No
+            return Boolean(clientVal || invVal || refVal);
+        });
+
         let redInvoices = [];
         let greenInvoices = [];
 
-        dataRows.forEach(row => {
-            if (row.values) {
-                let invoiceVal = '';
-                if (row.values.length > invCol.index && row.values[invCol.index]) {
-                    const invCell = row.values[invCol.index];
-                    invoiceVal = invCell.effectiveValue?.stringValue || (invCell.effectiveValue?.numberValue !== undefined ? String(invCell.effectiveValue.numberValue) : '');
-                }
+        validDataRows.forEach(row => {
+            const invoiceVal = invCol ? getRowCellStr(row, invCol.index) : '';
 
-                // Red alert on REF NO
-                if (row.values.length > refNoColIdx) {
-                    const refCell = row.values[refNoColIdx];
-                    const bg = refCell?.effectiveFormat?.backgroundColor;
-                    if (isRedColor(bg) && invoiceVal) {
-                        redInvoices.push(invoiceVal);
-                    }
+            // Red alert on REF NO
+            if (row.values.length > refNoColIdx) {
+                const refCell = row.values[refNoColIdx];
+                const bg = refCell?.effectiveFormat?.backgroundColor;
+                if (isRedColor(bg) && invoiceVal) {
+                    redInvoices.push(invoiceVal);
                 }
+            }
 
-                // Green alert on Cross column
-                if (row.values.length > crossColIdx) {
-                    const crossCell = row.values[crossColIdx];
-                    const bg = crossCell?.effectiveFormat?.backgroundColor;
-                    if (isGreenColor(bg) && invoiceVal) {
-                        greenInvoices.push(invoiceVal);
-                    }
+            // Green alert on Cross column (Auto-green if input date == today, or background is green)
+            if (row.values.length > crossColIdx) {
+                const crossCell = row.values[crossColIdx];
+                const bg = crossCell?.effectiveFormat?.backgroundColor;
+                const effVal = crossCell?.effectiveValue;
+                const rawVal = effVal ? (effVal.stringValue || (effVal.numberValue !== undefined ? effVal.numberValue : '')) : '';
+
+                const isCrossingToday = isSameDateAsToday(rawVal) || isGreenColor(bg);
+                if (isCrossingToday && invoiceVal) {
+                    greenInvoices.push(invoiceVal);
                 }
             }
         });
@@ -1017,16 +1099,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tableHeader.appendChild(actionTh);
 
         // Apply search filter if active
-        let filteredDataRows = dataRows.filter(row => {
-            if (!row.values || row.values.every(cell => {
-                const eff = cell.effectiveValue;
-                return !eff || (!eff.stringValue && eff.numberValue === undefined && eff.boolValue === undefined);
-            })) return false;
-            
+        let filteredDataRows = validDataRows.filter(row => {
             if (!searchTerm) return true;
             
             return row.values.some(cell => {
-                const eff = cell.effectiveValue;
+                const eff = cell?.effectiveValue;
                 let val = '';
                 if (eff) {
                     if (eff.stringValue) val = eff.stringValue;

@@ -107,7 +107,7 @@ QString GoogleSheetsClient::createJwt() {
     }
 
     // Remove PEM headers and footers, and whitespace
-    privateKeyStr.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\n", "").replace("\r", "").trimmed();
+    privateKeyStr = privateKeyStr.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\n", "").replace("\r", "").trimmed();
     QByteArray derKey = QByteArray::fromBase64(privateKeyStr.toUtf8());
 
     QJsonObject header;
@@ -128,14 +128,14 @@ QString GoogleSheetsClient::createJwt() {
 
     QByteArray signature;
 #ifdef Q_OS_WIN
-    NCRYPT_PROV_HANDLE hProv = NULL;
-    NCRYPT_KEY_HANDLE hNKey = NULL;
+    NCRYPT_PROV_HANDLE hProv = 0;
+    NCRYPT_KEY_HANDLE hNKey = 0;
     if (NCryptOpenStorageProvider(&hProv, MS_KEY_STORAGE_PROVIDER, 0) != 0) {
         emit error("NCryptOpenStorageProvider failed.");
         return "";
     }
     
-    if (NCryptImportKey(hProv, NULL, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, NULL, &hNKey, (PBYTE)derKey.data(), derKey.size(), 0) != 0) {
+    if (NCryptImportKey(hProv, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, NULL, &hNKey, (PBYTE)derKey.data(), derKey.size(), 0) != 0) {
         NCryptFreeObject(hProv);
         emit error("NCryptImportKey failed.");
         return "";

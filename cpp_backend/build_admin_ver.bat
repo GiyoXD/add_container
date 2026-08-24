@@ -3,6 +3,8 @@ echo ====================================================
 echo   Building Admin Version (With Full Features)
 echo ====================================================
 
+taskkill /IM add_container.exe /F 2>nul
+
 set PATH=C:\Qt\Tools\mingw1310_64\bin;C:\Qt\6.11.0\mingw_64\bin;%PATH%
 set QT_PATH=C:/Qt/6.11.0/mingw_64
 

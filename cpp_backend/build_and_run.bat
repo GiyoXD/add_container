@@ -3,6 +3,8 @@ echo =======================================
 echo   Building AddContainerProject...
 echo =======================================
 
+taskkill /IM add_container.exe /F 2>nul
+
 :: Run the build
 cmake --build build_qt6
 

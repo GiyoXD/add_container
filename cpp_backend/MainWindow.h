@@ -23,7 +23,7 @@ struct SheetTabInfo {
     QString sheetName;          // "2026" or "LOCAL  SUPPLY"
     QString tabTitle;           // "2026" or "LOCAL SUPPLY"
     QString fetchRange;         // "2026!A:Z" or "'LOCAL  SUPPLY'!A:Z"
-    int crossColumnIndex = 0;   // 7 for 2026, 5 for LOCAL SUPPLY
+    int crossColumnIndex = 0;   // 8 for 2026, 5 for LOCAL SUPPLY
     QString crossColumnLetter;  // "G" for 2026, "J" for LOCAL SUPPLY
     
     QPushButton *fetchBtn = nullptr;

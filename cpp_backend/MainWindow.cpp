@@ -171,9 +171,9 @@ void MainWindow::setupUi() {
     m_tabs[0].sheetName = "2026";
     m_tabs[0].tabTitle = "2026";
     m_tabs[0].fetchRange = "2026!A:Z";
-    m_tabs[0].crossColumnIndex = 7;
+    m_tabs[0].crossColumnIndex = 8;
     m_tabs[0].crossColumnLetter = "G";
-    QStringList headers2026 = {"Client", "IFL-CLIENT", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Cross Border"};
+    QStringList headers2026 = {"Client", "IFL-CLIENT", "Invoice No", "Ref No", "Invoice Date", "Container (2026)", "Bill (2026)", "Gross / Amount", "Cross Border"};
 
     // Tab 1: "LOCAL SUPPLY"
     m_tabs[1].sheetName = "LOCAL  SUPPLY";
@@ -566,6 +566,7 @@ void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& row
             CellData c_container2026 = row.size() > 8 ? row[8] : CellData{"", Qt::white};
             CellData c_bill2026 = row.size() > 9 ? row[9] : CellData{"", Qt::white};
             CellData c_iflClient2026 = row.size() > 10 ? row[10] : CellData{"", Qt::white};
+            CellData c_grossAmount = row.size() > 12 ? row[12] : CellData{"", Qt::white};
 
             // Skip header row if it is one
             if (c_client.value.toLower() == "client" || c_invNo.value.toLower() == "invoice_no" || c_invNo.value.toLower() == "invoice") continue;
@@ -593,6 +594,7 @@ void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& row
             addItem(c_invDate);
             addItem(c_container2026);
             addItem(c_bill2026);
+            addItem(c_grossAmount);
             addItem(c_crossBorder);
             
             tab.tableModel->appendRow(items);
@@ -619,7 +621,12 @@ void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& row
                 }
             }
 
-            if (isGreenColor(c_crossBorder.bgColor)) {
+            QString todayStr = QDate::currentDate().toString("dd-MMM-yyyy");
+            QString crossVal = c_crossBorder.value;
+            formatDateIfSerial(crossVal);
+            bool isCrossingToday = (crossVal.compare(todayStr, Qt::CaseInsensitive) == 0) || isGreenColor(c_crossBorder.bgColor);
+
+            if (isCrossingToday) {
                 QString invoiceVal = c_invNo.value.trimmed();
                 if (!invoiceVal.isEmpty()) {
                     crossTodayInvoices.append(invoiceVal);
@@ -653,8 +660,8 @@ void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& row
             // Skip header row
             if (c_no.value.toLower() == "n.o" || c_no.value.toLower() == "no" || c_invoiceNo.value.toLower() == "invoice no" || c_invoiceNo.value.toLower() == "invoice_no" || c_clientName.value.toLower() == "client name") continue;
 
-            // Skip if empty
-            if (c_no.value.isEmpty() && c_clientName.value.isEmpty() && c_invoiceNo.value.isEmpty() && c_refNo.value.isEmpty()) continue;
+            // Skip if empty or phantom row (must have at least client, invoice, or ref no)
+            if (c_clientName.value.isEmpty() && c_invoiceNo.value.isEmpty() && c_refNo.value.isEmpty()) continue;
 
             QList<QStandardItem*> items;
             auto addItem = [&](const CellData& cell, bool isFirst = false, const QString& invoiceId = "") {
@@ -703,7 +710,12 @@ void MainWindow::populateSheetData(int tabIdx, const QList<QList<CellData>>& row
                 }
             }
 
-            if (isGreenColor(c_cross.bgColor)) {
+            QString todayStr = QDate::currentDate().toString("dd-MMM-yyyy");
+            QString crossVal = c_cross.value;
+            formatDateIfSerial(crossVal);
+            bool isCrossingToday = (crossVal.compare(todayStr, Qt::CaseInsensitive) == 0) || isGreenColor(c_cross.bgColor);
+
+            if (isCrossingToday) {
                 QString invoiceVal = c_invoiceNo.value.trimmed();
                 if (!invoiceVal.isEmpty()) {
                     crossTodayInvoices.append(invoiceVal);
