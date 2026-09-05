@@ -67,3 +67,13 @@ android/app/build/
 android/capacitor-cordova-android-plugins/
 android/local.properties
 .gradle/
+
+# iOS build outputs
+ios/App/build/
+ios/App/Pods/
+ios/App/.symlinks/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+DerivedData/
+
